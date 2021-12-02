@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "foremanlite"
+version = "0.1.0"
+description = "Dynamic and containerized PXE-boot service."
+authors = ["Ryan Drew <learnitall0@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+moku = "^2.1"
+
+[tool.poetry.dev-dependencies]
+tox = "^3.24.4"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

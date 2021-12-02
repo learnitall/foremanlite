@@ -1,0 +1,17 @@
+[MASTER]
+jobs=0
+ignore-paths=
+    setup.py,
+    docs\/source\/conf.py,
+
+[MESSAGES CONTROL]
+disable=
+    duplicate-code,
+    import-error,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-instance-attributes,
+    fixme
+
+[FORMAT]
+max-line-length=79
