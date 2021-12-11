@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Initialize and configure foremanlite logging."""
-from typing import Union
+import typing as t
 import logging
 import logging.handlers
 
@@ -13,7 +13,7 @@ ROTATING_FILE_HANDLER_OPTS = {
     "maxBytes": 500 * (10 ** 6),  # 500 MB
     "backupCount": 5,
 }
-_LOGGER: Union[None, logging.Logger] = None
+_LOGGER: t.Union[None, logging.Logger] = None
 
 
 def get_stream_handler(formatter: logging.Formatter, level: int) -> logging.StreamHandler:
