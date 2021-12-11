@@ -65,8 +65,14 @@ class ForemanliteCLI(click.MultiCommand):
 @click.option('--quiet/--no-quiet', default=False, help='Disable printing logs to screen')
 @click.option('--log-file', default='/var/log/foremanlite/foremanlite.log', help='Provide filename to log file')
 @click.option('--persist-log/--no-persist-log', default=False, help='Persist logs on disk to given log file. File rotation will be used.')
+@click.option('--data-dir', default='/etc/foremanlite/data', help='Path to general purpose data store folder. Mainly used by plugins')
+@click.option('--plugin-dir', default='/etc/foremanlite/plugins', help='Path to plugin files.')
 @click_config_file.configuration_option()
-def cli(verbose, quiet, log_file, persist_log):
+@click.pass_context
+def cli(ctx, verbose, quiet, log_file, persist_log, data_dir, plugin_dir):
+    ctx.ensure_obj(dict)
+    ctx.obj['DATA_DIR'] = data_dir
+    ctx.obj['PLUGIN_DIR'] = plugin_dir
     logging_setup(
         verbose=verbose, 
         use_file=persist_log,
