@@ -2,16 +2,17 @@
 """Representation of machine information."""
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import NewType
 from enum import Enum
+from typing import NewType
 
-Mac = NewType('Mac', int)
+Mac = NewType("Mac", int)
 
 
 class Arch(Enum):
     """Represent architecture of a machine."""
-    x86_64 = 1
-    aarch64 = 2
+
+    x86_64 = 1  # pylint: disable=invalid-name
+    aarch64 = 2  # pylint: disable=invalid-name
 
 
 @dataclass
@@ -29,4 +30,3 @@ class MachineGroup(ABC):
     @abstractmethod
     def matches(cls, machine: Machine) -> bool:
         """Return if the given machine belongs to this group."""
-

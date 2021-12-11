@@ -218,4 +218,3 @@ class BaseMachineStore(ABC):
     @abstractmethod
     def get(self, mac: Mac) -> Machine:
         """Get the given machine from the store (by Mac)."""
-
