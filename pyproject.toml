@@ -12,6 +12,7 @@ gunicorn = "^20.1.0"
 flask-restx = "^0.5.1"
 click = "^8.0.3"
 click-config-file = "^0.6.0"
+watchdog = "^2.1.6"
 
 [tool.poetry.dev-dependencies]
 tox = "^3.24.4"
