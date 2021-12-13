@@ -12,7 +12,8 @@ disable=
     too-many-arguments,
     too-many-instance-attributes,
     fixme,
-    global-statement
+    global-statement,
+    raise-missing-from
 
 [FORMAT]
 max-line-length=79
