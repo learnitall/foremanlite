@@ -11,7 +11,8 @@ disable=
     too-few-public-methods,
     too-many-arguments,
     too-many-instance-attributes,
-    fixme
+    fixme,
+    global-statement
 
 [FORMAT]
 max-line-length=79
