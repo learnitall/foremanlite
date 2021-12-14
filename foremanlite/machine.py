@@ -13,8 +13,8 @@ Mac = t.NewType("Mac", str)
 class Arch(Enum):
     """Represent architecture of a machine."""
 
-    x86_64 = 1  # pylint: disable=invalid-name
-    aarch64 = 2  # pylint: disable=invalid-name
+    x86_64 = "x86_64"  # pylint: disable=invalid-name
+    aarch64 = "aarch64"  # pylint: disable=invalid-name
 
 
 @dataclass
