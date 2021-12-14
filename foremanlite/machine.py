@@ -61,6 +61,12 @@ class Machine:
 
         return json.dumps(asdict(self))
 
+    @classmethod
+    def from_json(cls, json_str: str) -> "Machine":
+        """Return Machine from json-formatted string."""
+
+        return cls(**json.loads(json_str))
+
 
 class MachineSelector(ABC):
     """Base Machine Selector class."""
