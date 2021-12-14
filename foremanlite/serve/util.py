@@ -41,10 +41,9 @@ def parse_machine_from_request(req: Request) -> Machine:
     ... {"args": {
     ...     "mac": "11:22:33:44",
     ...     "arch": "x86_64",
-    ...     "name": "test"
     ... }})
     >>> sorted(list(my_request_mock.args.items()))
-    [('arch', 'x86_64'), ('mac', '11:22:33:44'), ('name', 'test')]
+    [('arch', 'x86_64'), ('mac', '11:22:33:44')]
     >>> from foremanlite.serve.util import parse_machine_from_request
     >>> from foremanlite.machine import Arch
     >>> machine = parse_machine_from_request(my_request_mock)
@@ -52,8 +51,6 @@ def parse_machine_from_request(req: Request) -> Machine:
     '11:22:33:44'
     >>> machine.arch == Arch.x86_64
     True
-    >>> machine.name
-    'test'
     >>> my_request_mock.args["arch"] = "not an arch"
     >>> try:
     ...     parse_machine_from_request(my_request_mock)

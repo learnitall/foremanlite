@@ -19,11 +19,27 @@ class Arch(Enum):
 
 @dataclass
 class Machine:
-    """Represent information about a pxe-booted machine."""
+    """
+    Represent information about a pxe-booted machine.
 
-    name: str
+    Attributes
+    ----------
+    name : str, optional
+        Pretty-name of the machine.
+    mac : Mac
+        Mac address of the machine.
+    arch : Arch
+        Architecture of the machine. Must be part of Arch enum.
+    provision: bool, optional
+        If True, signals this machine should be provisioned on next boot.
+        If False, signals this machine should not be provisioned on next boot.
+
+    """
+
     mac: Mac
     arch: Arch
+    name: t.Optional[str] = None
+    provision: t.Optional[bool] = None
 
     def __eq__(self, other) -> bool:
         return repr(self) == repr(other)
@@ -40,8 +56,8 @@ class Machine:
         >>> from foremanlite.machine import Machine
         >>> m = Machine(name="test", mac="11:22:33:44", arch="x86_64")
         >>> m.to_json()
-        '{"name": "test", "mac": "11:22:33:44", "arch": "x86_64"}'
-        """
+        '{"mac": "11:22:33:44", "arch": "x86_64", "name": "test", "provision": null}'
+        """  # pylint: disable=line-too-long
 
         return json.dumps(asdict(self))
 
