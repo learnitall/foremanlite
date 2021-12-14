@@ -141,6 +141,8 @@ class MachineGroup:
         Name representing this machine group
     selectors : list of MachineSelector
         MachineSelectors that describe this group.
+    group_vars : dict
+        Variables to associate with this group.
     """
 
     SELECTORS = {
@@ -148,10 +150,16 @@ class MachineGroup:
         "regex": RegexMachineSelector,
     }
 
-    def __init__(self, name: str, selectors: t.Iterable[MachineSelector]):
+    def __init__(
+        self,
+        name: str,
+        selectors: t.Iterable[MachineSelector],
+        group_vars: t.Optional[t.Dict[str, t.Any]] = None,
+    ):
         self.name = name
         self.selectors = selectors
         self.machines: t.Set[Machine] = set()
+        self.vars = group_vars
 
     def matches(self, machine: Machine) -> bool:
         """Return if the given machine belongs to this group."""
@@ -205,7 +213,11 @@ class MachineGroup:
                     attr: val,
                 },
                 ...
-            ]
+            ],
+            "vars": {
+                var1: value1,
+                ...
+            }
         }
         ```
 
@@ -229,7 +241,10 @@ class MachineGroup:
         ...         "type": "exact",
         ...         "val": "mymachine",
         ...         "attr": "name"
-        ...     }]
+        ...     }],
+        ...     "vars": {
+        ...         "yougood?": True
+        ...     }
         ... }
         >>> mg = MachineGroup.from_json(json.dumps(config))
         >>> machine = Machine(name="mymachine", mac=None, arch=None)
@@ -237,6 +252,8 @@ class MachineGroup:
         1
         >>> list(mg.machines)[0].name
         'mymachine'
+        >>> mg.vars["yougood?"]
+        True
         """
 
         config = json.loads(json_str)
@@ -272,4 +289,8 @@ class MachineGroup:
                     f"Unable to create selector {sel_type}: {err}"
                 )
 
-        return cls(name=name, selectors=selector_instances)
+        return cls(
+            name=name,
+            selectors=selector_instances,
+            group_vars=config.get("vars", None),
+        )
