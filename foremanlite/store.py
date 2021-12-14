@@ -55,7 +55,7 @@ class FileSystemCache:
     def __init__(self, root_dir: str):
         self.root: Path = Path(root_dir)
         # Filename hash: (content, content sha), is dirty
-        self.cache: dict[SHA256, t.Tuple[bytes, SHA256, bool]] = {}
+        self.cache: t.Dict[SHA256, t.Tuple[bytes, SHA256, bool]] = {}
         self.lock: threading.Lock = threading.Lock()
         self.logger: logging.Logger = get_logger("FileSystemCache")
         self.observer = Observer()

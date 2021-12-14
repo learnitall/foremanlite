@@ -22,4 +22,3 @@ FROM python:3.9-slim
 
 COPY --from=builder /app /app
 ENTRYPOINT ["/app/.venv/bin/gunicorn", "foremanlite.main:app"]
-

@@ -13,7 +13,8 @@ disable=
     too-many-instance-attributes,
     fixme,
     global-statement,
-    raise-missing-from
+    raise-missing-from,
+    eval-used
 
 [FORMAT]
 max-line-length=79
