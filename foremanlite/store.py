@@ -233,50 +233,6 @@ class FileSystemCache:
         return content
 
 
-FILE_SYSTEM_CACHE: t.Optional[FileSystemCache] = None
-
-
-def start_cache(*args, **kwargs):
-    """
-    Start the global file system cache.
-
-    Given args and kwargs are passed directly to FileSystemCache init.
-    """
-
-    global FILE_SYSTEM_CACHE
-    FILE_SYSTEM_CACHE = FileSystemCache(*args, **kwargs)
-    FILE_SYSTEM_CACHE.start_watchdog()
-
-
-def get_cache() -> t.Optional[FileSystemCache]:
-    """
-    Return global FileSystemCache instance
-
-    Returns
-    -------
-    None
-        if no FileSystemCache has been created.
-    FileSystemCache
-    """
-
-    return FILE_SYSTEM_CACHE
-
-
-def teardown_cache():
-    """
-    Teardown current filesystem cache.
-
-    This is mainly used for testing purposes, but needs to be called
-    before exit.
-    """
-
-    global FILE_SYSTEM_CACHE
-    if FILE_SYSTEM_CACHE is None:
-        return
-    FILE_SYSTEM_CACHE.stop_watchdog()
-    FILE_SYSTEM_CACHE = None
-
-
 class BaseMachineStore(ABC):
     """ABC for a machine storage utility."""
 

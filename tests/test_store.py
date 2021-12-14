@@ -7,7 +7,7 @@ import time
 import pytest
 
 import foremanlite.logging
-from foremanlite.store import get_cache, start_cache, teardown_cache
+from foremanlite.store import FileSystemCache
 
 CACHE_CONTENT = "hi there"
 CACHE_FILES = {
@@ -34,11 +34,22 @@ def contentdir(tmpdir):
     yield tmpdir
 
 
-def test_filesystem_cache_will_use_cache_on_multiple_reads(logfix, contentdir):
+@pytest.fixture()
+def cachefactory(contentdir):
+    """Create and teardown a FileSystemCache instance."""
+
+    cache = FileSystemCache(contentdir)
+    cache.start_watchdog()
+    yield cache, contentdir
+    cache.stop_watchdog()
+
+
+def test_filesystem_cache_will_use_cache_on_multiple_reads(
+    logfix, cachefactory
+):
     """Test filesystem cache will use cache for subsequent reads."""
 
-    start_cache(contentdir)
-    cache = get_cache()
+    cache, contentdir = cachefactory
     assert cache is not None
     filename, content = list(CACHE_FILES.items())[0]
     assert cache.read_file(filename).decode("utf-8") == content
@@ -46,14 +57,12 @@ def test_filesystem_cache_will_use_cache_on_multiple_reads(logfix, contentdir):
     assert entry is not None
     assert entry.decode("utf-8") == content
     assert cache.read_file(filename).decode("utf-8") == content
-    teardown_cache()
 
 
-def test_filesystem_cache_can_check_for_dirty_files(logfix, contentdir):
+def test_filesystem_cache_can_check_for_dirty_files(logfix, cachefactory):
     """Test filesystem cache will detect dirty files."""
 
-    start_cache(contentdir)
-    cache = get_cache()
+    cache, contentdir = cachefactory
     assert cache is not None
     filename, content = list(CACHE_FILES.items())[0]
     assert cache.read_file(filename).decode("utf-8") == content
