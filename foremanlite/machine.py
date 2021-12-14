@@ -4,7 +4,7 @@ import json
 import re
 import typing as t
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import Enum
 
 Mac = t.NewType("Mac", str)
@@ -30,6 +30,20 @@ class Machine:
 
     def __hash__(self):
         return hash(repr(self))
+
+    def to_json(self) -> str:
+        """
+        Return json-formatting string of Machine instance.
+
+        Examples
+        --------
+        >>> from foremanlite.machine import Machine
+        >>> m = Machine(name="test", mac="11:22:33:44", arch="x86_64")
+        >>> m.to_json()
+        '{"name": "test", "mac": "11:22:33:44", "arch": "x86_64"}'
+        """
+
+        return json.dumps(asdict(self))
 
 
 class MachineSelector(ABC):
