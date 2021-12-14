@@ -13,7 +13,6 @@ ROTATING_FILE_HANDLER_OPTS: t.Dict[str, t.Any] = {
     "maxBytes": 500 * (10 ** 6),  # 500 MB
     "backupCount": 5,
 }
-_LOGGER: t.Union[None, logging.Logger] = None
 
 
 def get_stream_handler(
@@ -114,23 +113,18 @@ def setup(
     if use_stream:
         logger.addHandler(get_stream_handler(formatter, level))
 
-    global _LOGGER
-    _LOGGER = logger
-
 
 def teardown():
     """
     Undo relevant actions performed by `setup`.
 
-    Mainly used for testing purposes.
+    Mainly used for testing purposes. Essentially removes all handlers
+    on the logger with `BASENAME`.
     """
 
-    global _LOGGER
-    if _LOGGER is None:
-        return
-    for handler in _LOGGER.handlers:
-        _LOGGER.removeHandler(handler)
-    _LOGGER = None
+    logger = logging.getLogger(BASENAME)
+    for handler in logger.handlers:
+        logger.removeHandler(handler)
 
 
 def get(name: str) -> logging.Logger:
@@ -145,16 +139,6 @@ def get(name: str) -> logging.Logger:
     Return
     ------
     logging.Logger
-
-    Raises
-    ------
-    ValueError
-        If the setup() method has not been called yet.
     """
 
-    if _LOGGER is None:
-        raise ValueError(
-            "Looks like logging hasn't been setup yet... was setup() called?"
-        )
-
-    return _LOGGER.getChild(name)
+    return logging.getLogger(BASENAME).getChild(name)

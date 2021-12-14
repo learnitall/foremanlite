@@ -34,12 +34,3 @@ def test_get_gets_a_child_of_the_base_logger(_do_teardown_fixture):
 
     assert logger.name == foremanlite.logging.BASENAME + ".test"
     assert logger.hasHandlers()
-
-
-def test_value_error_raised_if_setup_has_not_been_called_before_get(
-    _do_teardown_fixture,
-):
-    """Test `get` raises a `ValueError` if `setup` hasn't been called yet."""
-
-    with pytest.raises(ValueError):
-        foremanlite.logging.get("test")
