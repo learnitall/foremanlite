@@ -6,7 +6,6 @@ import time
 
 import pytest
 
-import foremanlite.logging
 from foremanlite.cache import FileSystemCache
 
 CACHE_CONTENT = "hi there"
@@ -17,17 +16,8 @@ CACHE_FILES = {
 
 
 @pytest.fixture()
-def logfix():
-    """Setup and teardown logging for each test."""
-
-    foremanlite.logging.setup(verbose=True, use_stream=True)
-    yield
-    foremanlite.logging.teardown()
-
-
-@pytest.fixture()
 def contentdir(tmpdir):
-    """Get a temporary directory with content."""
+    """Get a temporary directory with cacheable content."""
 
     for filename, content in CACHE_FILES.items():
         (tmpdir / filename).write_text(content, "utf-8")
