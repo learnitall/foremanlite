@@ -11,12 +11,14 @@ for more info.
 """
 import os
 import typing as t
+from dataclasses import fields
+from functools import cache, reduce
 
 import click
 import click_config_file
 from click import Context
 
-from foremanlite.logging import setup as logging_setup
+from foremanlite.cli.config import DEFAULT_CONFIG, Config
 
 COMMAND_FOLDER = os.path.join(os.path.dirname(__file__), "commands")
 
@@ -65,45 +67,42 @@ class ForemanliteCLI(click.MultiCommand):
         return namespace["cli"]
 
 
+@cache
+def config_to_click(config: Config):
+    """Translate config dataclass to click decorators."""
+    decs: t.List[t.Callable] = []
+
+    for field in fields(config):
+        if field.name.endswith("_help"):
+            continue
+
+        name_norm = field.name.lower().replace("_", "-")
+        name_param = f"--{name_norm}"
+        if field.type == bool:
+            name_param += f"/--no-{name_norm}"
+
+        help_str = getattr(config, field.name + "_help", "")
+        decs.append(
+            click.option(name_param, default=field.default, help=help_str)
+        )
+
+    def wrapper(func):
+        # Decorators is organized from top of call stack to bottom,
+        # so traverse from bottom to top while constructing wrapped function
+        # this is why we have decs[::-1]
+        return reduce(lambda x, y: y(x), decs[::-1], func)
+
+    return wrapper
+
+
 @click.command(cls=ForemanliteCLI)
-@click.option(
-    "--verbose/--no-verbose", default=False, help="Enable verbose logging"
-)
-@click.option(
-    "--quiet/--no-quiet", default=False, help="Disable printing logs to screen"
-)
-@click.option(
-    "--log-file",
-    default="/var/log/foremanlite/foremanlite.log",
-    help="Provide filename to log file",
-)
-@click.option(
-    "--persist-log/--no-persist-log",
-    default=False,
-    help="Persist logs on disk to given log file. File rotation will be used.",
-)
-@click.option(
-    "--config-dir",
-    default="/etc/foremanlite/",
-    help="Path to configuration directory.",
-)
+@config_to_click(DEFAULT_CONFIG)
 @click_config_file.configuration_option()
 @click.pass_context
-def cli(ctx, verbose, quiet, log_file, persist_log, config_dir, plugin_dir):
-    """
-    Main function for foremanlite cli.
-
-    This function is first called upon using the foremanlite cli.
-    """
-    ctx.ensure_obj(dict)
-    ctx.obj["CONFIG_DIR"] = config_dir
-    ctx.obj["PLUGIN_DIR"] = plugin_dir
-    logging_setup(
-        verbose=verbose,
-        use_file=persist_log,
-        file_path=log_file,
-        use_stream=not quiet,
-    )
+def cli(ctx, **kwargs):
+    """Foremanlite CLI."""
+    config = Config(**kwargs)
+    ctx.obj = config
 
 
 def run():
