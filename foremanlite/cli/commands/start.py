@@ -3,8 +3,10 @@
 """Start command group."""
 import click
 
+from foremanlite.logging import setup as setup_logging
+
 
 @click.command()
-def cli():
-    """Definition of the start command."""
-    click.echo("test")
+@click.pass_context
+def cli(ctx):
+    """Start foremanlite server."""
