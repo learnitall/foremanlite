@@ -101,7 +101,7 @@ class ServeContext:
     def get_cache(config: Config, logger: logging.Logger) -> FileSystemCache:
         """Get FileSystemCache instance from the given config."""
 
-        data_dir = os.path.join(config.config_dir, DATA_DIR)
+        data_dir = os.path.abspath(os.path.join(config.config_dir, DATA_DIR))
         try:
             cache = FileSystemCache(data_dir)
         except ValueError as err:
