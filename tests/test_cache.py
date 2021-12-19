@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=redefined-outer-name,unused-argument
 """Test contents of foremanlite.store."""
+import os
 import time
 
 import pytest
@@ -64,3 +65,32 @@ def test_filesystem_cache_can_check_for_dirty_files(logfix, cachefactory):
     time.sleep(0.5)  # wait for watchdog to do its thing
     assert cache.read_file(filename).decode("utf-8") != content
     assert cache.read_file(filename).decode("utf-8") == new_content
+
+
+def test_filesystem_cache_can_check_if_file_exists(logfix, cachefactory):
+    """Test the filesystem cache can check if file exists by name."""
+
+    cache, contentdir = cachefactory
+    assert cache is not None
+    for filename in CACHE_FILES:
+        assert cache.file_exists(filename)
+        cache.read_file(filename)
+        os.remove(contentdir / filename)
+        time.sleep(0.1)  # let watchdog update
+        assert not cache.file_exists(filename)
+
+
+def test_filesystem_cache_can_check_if_file_exists_no_watchdog(
+    logfix, cachefactory
+):
+    """Test the fs cache (no watchdog) can check if file exists by name."""
+
+    cache, contentdir = cachefactory
+    assert cache is not None
+    cache.stop_watchdog()
+    for filename in CACHE_FILES:
+        assert cache.file_exists(filename)
+        cache.read_file(filename)
+        os.remove(contentdir / filename)
+        time.sleep(0.1)  # same behavior as previous test
+        assert cache.file_exists(filename)

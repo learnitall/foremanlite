@@ -193,6 +193,32 @@ class FileSystemCache:
             False,
         )
 
+    def file_exists(self, filename: str) -> bool:
+        """
+        Check if the given file exists on disk or in the cache.
+
+        Parameters
+        ----------
+        filename : str
+            Filename of file to check for on disk on in the cache.
+
+        Returns
+        -------
+        bool
+            True if the file can be found, False otherwise.
+        """
+
+        path = self.pathify(filename)
+        if self.is_cached(path) is not None:
+            return True
+
+        try:
+            self.validate_path(path)
+        except ValueError:
+            return False
+        else:
+            return True
+
     def read_file(self, filename: str) -> bytes:
         """
         Read the given file and return its contents.
