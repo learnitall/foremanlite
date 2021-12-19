@@ -14,9 +14,7 @@ from foremanlite.serve.app import ServeContext
 
 machine_parser: RequestParser = RequestParser()
 machine_parser.add_argument("mac", type=Mac, required=True)
-machine_parser.add_argument(
-    "arch", type=Arch, choices=tuple(a.value for a in Arch), required=True
-)
+machine_parser.add_argument("arch", type=Arch, required=True)
 machine_parser.add_argument("provision", type=bool, required=False)
 machine_parser.add_argument("name", type=str, required=False)
 
@@ -71,14 +69,49 @@ def repr_request(req: Request) -> str:
     return f"{req.method} {req.full_path} from {req.remote_addr}"
 
 
-def is_template(target: str) -> bool:
-    """
-    Return if the given target file is a template.
+def is_template(filename: str) -> bool:
+    """Return wether or not the given file is a template."""
 
-    Essentially just checks if extension is '.j2'
+    return filename.endswith(".j2")
+
+
+def resolve_filename(
+    ctx: ServeContext,
+    requested: str,
+) -> t.Optional[str]:
+    """
+    Determine the name of the requested file in the cache.
+
+    This is mainly used when working with templates. For instance,
+    if a client requests the file 'myfile.txt', but we only
+    have 'myfile.txt.j2' in the cache/on disk, we need to actually
+    serve to the client the rendered 'myfile.txt.j2' rather than
+    trying to read 'myfile.txt'.
+
+    Parameters
+    ----------
+    ctx : ServeContext
+        ServeContext instance to get cache and other runtime variables from.
+    requested : str
+        Filename requested from a client.
+
+    Returns
+    -------
+    str
+        Equivalent name of the requested file within the cache. This
+        will either be the requested filename if it exists, or the
+        filename of the associated template.
+    None
+        The requested filename does not exist and a template for it does
+        not exist either.
     """
 
-    return target.endswith(".j2")
+    template = requested + ".j2"
+    if ctx.fs_cache.file_exists(requested):
+        return requested
+    if ctx.fs_cache.file_exists(template):
+        return template
+    return None
 
 
 def render_machine_template(
