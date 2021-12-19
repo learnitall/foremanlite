@@ -67,7 +67,9 @@ class IgnitionFiles(Resource):
             _logger.warning(msg)
             return (msg, 500)
 
-        machine_request = find_stored_machine(context, machine_request)
+        machine_request = find_stored_machine(
+            context, machine_request, add_if_missing=True
+        )
 
         if is_template(filename):
             machine_groups = find_machine_groups(context, machine_request)

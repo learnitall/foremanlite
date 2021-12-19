@@ -237,9 +237,15 @@ def find_machine_groups(
     return {group for group in ctx.groups if group.matches(machine)}
 
 
-def find_stored_machine(ctx: ServeContext, machine: Machine) -> Machine:
+def find_stored_machine(
+    ctx: ServeContext, machine: Machine, add_if_missing: bool = False
+) -> Machine:
     """
     Find matching machine in store for the given machine.
+
+    If `add_if_missing` is given, then the given machine
+    will be added into the context's store if the machine
+    was not present.
 
     Returns
     -------
@@ -256,5 +262,7 @@ def find_stored_machine(ctx: ServeContext, machine: Machine) -> Machine:
         if len(stored) == 1:  # exact match
             params.update(asdict(stored))
             return Machine(**params)
+        if add_if_missing:
+            ctx.store.put(machine)
 
     return machine
