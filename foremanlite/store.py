@@ -54,14 +54,16 @@ class RedisMachineStore(BaseMachineStore):
         """Try connecting to configured redis instance, logging results."""
 
         host = self.redis.connection_pool.connection_kwargs["host"]
-        if self.redis.ping():
+        try:
+            self.redis.ping()
+        except redis.exceptions.ConnectionError:
+            self.logger.warning(
+                f"Unable to establish connection with redis host at {host}"
+            )
+            return False
+        else:
             self.logger.info(f"Connected to redis at {host}")
             return True
-
-        self.logger.warning(
-            f"Unable to establish connection with redis host at {host}"
-        )
-        return False
 
     def _get_machine_list(self) -> t.List[Machine]:
         """Get machine list from redis."""
