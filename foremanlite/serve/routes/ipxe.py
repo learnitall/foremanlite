@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf -8 -*-
-"""iPXE API endpoint"""
-import typing as t
-from dataclasses import asdict
+"""
+iPXE API endpoint.
 
+Will serve iPXE files stored in `data/ipxe`.
+Anything ending in `.j2` will
+be treated as a jinja template. See
+`foremanlite.serve.util.render_machine_template` for
+information on how templates are handled.
+"""
 from flask import Blueprint, request
 from flask_restx import Api, Resource
 
@@ -11,6 +16,9 @@ from foremanlite.logging import get as get_logger
 from foremanlite.machine import Machine
 from foremanlite.serve.context import get_context
 from foremanlite.serve.util import (
+    find_machine_groups,
+    find_stored_machine,
+    is_template,
     machine_parser,
     parse_machine_from_request,
     repr_request,
@@ -55,13 +63,22 @@ class IPXEFiles(Resource):
             )
             return serve_file(context, IPXE_PROVISION, _logger)
 
-        if context.store is not None:
-            machine_stored = context.store.get(**asdict(machine_request))
-            if len(machine_stored) == 1:
-                params: t.Dict[str, t.Any] = asdict(machine_request)
-                params.update(asdict(machine_stored))
-                machine_request = Machine(**params)
+        machine_request = find_stored_machine(context, machine_request)
 
         if machine_request.provision or machine_request.provision is None:
-            return serve_file(context, IPXE_PROVISION, _logger)
-        return serve_file(context, IPXE_PASSTHROUGH, _logger)
+            target = IPXE_PROVISION
+        else:
+            target = IPXE_PASSTHROUGH
+
+        if is_template(target):
+            machine_groups = find_machine_groups(context, machine_request)
+        else:
+            machine_groups = None
+
+        return serve_file(
+            context,
+            target,
+            _logger,
+            machine=machine_request,
+            groups=machine_groups,
+        )

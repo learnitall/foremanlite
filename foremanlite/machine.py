@@ -36,7 +36,6 @@ class Machine:
     provision: bool, optional
         If True, signals this machine should be provisioned on next boot.
         If False, signals this machine should not be provisioned on next boot.
-
     """
 
     mac: Mac
