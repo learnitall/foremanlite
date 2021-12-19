@@ -89,17 +89,6 @@ class ExactMachineSelector(MachineSelector):
         Value to match against.
     attr : str
         Attribute of Machine to match val against.
-
-    Examples
-    --------
-    >>> from foremanlite.machine import *
-    >>> machine = Machine(name="test", mac="11:22:33:44", arch=Arch.aarch64)
-    >>> selector = ExactMachineSelector(attr="mac", val="11:22:33:44")
-    >>> selector.matches(machine)
-    True
-    >>> selector = ExactMachineSelector(attr="name", val="test2")
-    >>> selector.matches(machine)
-    False
     """
 
     def __init__(self, val: str, attr: str):
@@ -127,17 +116,6 @@ class RegexMachineSelector(MachineSelector):
         Regex string to match against.
     attr : str
         Attribute of Machine to match regex string against.
-
-    Examples
-    --------
-    >>> from foremanlite.machine import *
-    >>> machine = Machine(name="test", mac="11:22:33:44", arch=Arch.aarch64)
-    >>> selector = RegexMachineSelector(attr="mac", val="^11:22:.*$")
-    >>> selector.matches(machine)
-    True
-    >>> selector = ExactMachineSelector(attr="name", val="est")
-    >>> selector.matches(machine)
-    False
     """
 
     def __init__(self, val: str, attr: str):
@@ -269,30 +247,6 @@ class MachineGroup:
         ------
         ValueError
             if the config could not be parsed correctly
-
-        Examples
-        --------
-        >>> import json
-        >>> from foremanlite.machine import *
-        >>> config = {
-        ...     "name": "test",
-        ...     "selectors": [{
-        ...         "type": "exact",
-        ...         "val": "mymachine",
-        ...         "attr": "name"
-        ...     }],
-        ...     "vars": {
-        ...         "yougood?": True
-        ...     }
-        ... }
-        >>> mg = MachineGroup.from_json(json.dumps(config))
-        >>> machine = Machine(name="mymachine", mac=None, arch=None)
-        >>> mg.filter([machine])
-        1
-        >>> list(mg.machines)[0].name
-        'mymachine'
-        >>> mg.vars["yougood?"]
-        True
         """
 
         config = json.loads(json_str)
