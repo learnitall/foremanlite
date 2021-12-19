@@ -5,9 +5,9 @@ import typing as t
 
 from flask import Blueprint, Flask
 
-from foremanlite.serve.routes import ipxe
+from foremanlite.serve.routes import ignition, ipxe
 
-blueprints: t.Tuple[Blueprint] = (ipxe.blueprint,)
+blueprints: t.Tuple[Blueprint, ...] = (ipxe.blueprint, ignition.blueprint)
 
 
 def register_blueprints(app: Flask):

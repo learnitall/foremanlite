@@ -26,6 +26,7 @@ from foremanlite.serve.util import (
     machine_parser,
     parse_machine_from_request,
     repr_request,
+    resolve_filename,
     serve_file,
 )
 from foremanlite.vars import BUTANE_EXEC, VERSION
@@ -36,16 +37,14 @@ ns = api.namespace("ignition", description="Get ignition config files")
 _logger = get_logger("ignition")
 
 
-@ns.route("/<string:filename>")
+@ns.route("/butane/<string:filename>")
 @ns.param("filename", "Filename to retreive")
 @api.doc(parser=machine_parser)
 class IgnitionFiles(Resource):
     """
-    Resource representing ignition files.
+    Resource representing renderable butane files.
 
     All returned content will be in the format of the ignition spec.
-    If a butane file is requested and can be found on disk, it will
-    be rendered into the ignition spec and returned.
     """
 
     @staticmethod
@@ -53,6 +52,10 @@ class IgnitionFiles(Resource):
         """Get the given ignition file"""
 
         context = get_context()
+        resolved_fn = resolve_filename(context, filename)
+
+        if resolved_fn is None or not is_butane_file(resolved_fn):
+            return ("File not found", 404)
 
         try:
             machine_request: Machine = parse_machine_from_request(request)
@@ -71,21 +74,22 @@ class IgnitionFiles(Resource):
         else:
             machine_groups = None
 
+        # Get file contents so we can render as butane
         result, code = serve_file(
             ctx=context,
-            target=filename,
+            target=resolved_fn,
             logger=_logger,
             machine=machine_request,
             groups=machine_groups,
         )
 
-        if code != 200 or not is_butane_file(filename):
+        if code != 200:
             return (result, code)
 
         try:
             result = render_butane_content(result, BUTANE_EXEC)
         except ValueError as err:
-            msg = f"Unable to serve ignition config for {filename}: {err}"
+            msg = f"Unable to serve ignition config for {resolved_fn}: {err}"
             _logger.warning(msg)
             return (msg, 500)
         else:

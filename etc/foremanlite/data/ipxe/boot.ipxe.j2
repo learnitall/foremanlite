@@ -1,0 +1,6 @@
+#!ipxe
+
+cpuid --ext 29 && set arch x86_64 || set arch i386
+iseq ${buildarch} arm64 && set arch arm64 ||
+
+chain --autofree {{ url_for('ipxe.ipxe_ipxe_files', filename=vars.filename, _external=true) }}
