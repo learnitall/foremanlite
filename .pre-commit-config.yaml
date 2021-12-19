@@ -28,7 +28,7 @@ repos:
         args:
         - --profile=black
         - --color
-        - --line-length=110
+        - --line-length=79
 
   - repo: https://github.com/PyCQA/flake8
     rev: '4.0.1'
