@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """General utilities for helping to serve foremanlite requests."""
+import logging
 import typing as t
 
 from flask.wrappers import Request
+from flask_restx.reqparse import ParseResult, RequestParser
 
 from foremanlite.machine import Arch, Mac, Machine
+from foremanlite.serve.app import ServeContext
+
+machine_parser: RequestParser = RequestParser()
+machine_parser.add_argument("mac", type=Mac, required=True)
+machine_parser.add_argument(
+    "arch", type=Arch, choices=tuple(a.value for a in Arch), required=True
+)
+machine_parser.add_argument("provision", type=bool, required=False)
+machine_parser.add_argument("name", type=str, required=False)
 
 
 def parse_machine_from_request(req: Request) -> Machine:
@@ -33,39 +44,56 @@ def parse_machine_from_request(req: Request) -> Machine:
     TypeError
         if a parameter is missing for the machine
 
-    Examples
-    --------
-    >>> my_request_mock = type(
-    ... 'request_mock',
-    ... tuple(),
-    ... {"args": {
-    ...     "mac": "11:22:33:44",
-    ...     "arch": "x86_64",
-    ... }})
-    >>> sorted(list(my_request_mock.args.items()))
-    [('arch', 'x86_64'), ('mac', '11:22:33:44')]
-    >>> from foremanlite.serve.util import parse_machine_from_request
-    >>> from foremanlite.machine import Arch
-    >>> machine = parse_machine_from_request(my_request_mock)
-    >>> machine.mac
-    '11:22:33:44'
-    >>> machine.arch == Arch.x86_64
-    True
-    >>> my_request_mock.args["arch"] = "not an arch"
-    >>> try:
-    ...     parse_machine_from_request(my_request_mock)
-    ... except ValueError:
-    ...     print("ValueError")
-    ValueError
     """
 
-    switch = {
-        "mac": lambda k, v: attrs.append((k, Mac(v))),
-        "arch": lambda k, v: attrs.append((k, Arch(v))),
-        "name": lambda k, v: attrs.append((k, v)),
-    }
-    attrs: t.List[t.Tuple[str, t.Any]] = []
-    for key, value in req.args.items():
-        switch.get(key, lambda k, v: v)(key, value)
+    machine_params: ParseResult = machine_parser.parse_args(req=req)
+    return Machine(**machine_params)
 
-    return Machine(**dict(attrs))
+
+def repr_request(req: Request) -> str:
+    """
+    Get string representation of the given request.
+
+    Can be used for logging a request in case an error occurs.
+
+    Parameters
+    ----------
+    req: Request
+        Flask request instance to log information about
+
+    Returns
+    -------
+    str
+    """
+
+    return f"{req.method} {req.full_path} from {req.remote_addr}"
+
+
+def serve_file(
+    ctx: ServeContext, target: str, logger: logging.Logger
+) -> t.Tuple[str, int]:
+    """
+    Return the given target file using the given Context.
+
+    Parameters
+    ----------
+    ctx : ServeContext
+        ServeContext to pull cache instance from
+    target : str
+        File to return content of
+    logger : logging.Logger
+        Logger to send warning messages to if file was unable to
+        be served successfully
+
+    Returns
+    -------
+    (str, int)
+        If file was read successfully, will return (content, 200).
+        Otherwise, will return (error message, 500)
+    """
+
+    try:
+        return (ctx.fs_cache.read_file(target).decode("utf-8"), 200)
+    except ValueError as err:
+        logger.warning(f"Unable to serve {target}: {err}")
+        return (f"Unable to serve {target}", 500)

@@ -22,6 +22,9 @@ class Machine:
     """
     Represent information about a pxe-booted machine.
 
+    This definition is coupled with
+    foremanlite.serve.util.machine_parser.
+
     Attributes
     ----------
     name : str, optional
