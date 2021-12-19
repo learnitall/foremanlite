@@ -10,9 +10,10 @@ be treated as a jinja template. See
 `foremanlite.serve.util.render_machine_template` for
 information on how templates are handled.
 """
+import os
 
-from flask import Blueprint, request
-from flask_restx import Api
+from flask import request
+from flask_restx import Namespace
 from flask_restx.resource import Resource
 
 from foremanlite.butane import is_butane_file, render_butane_content
@@ -29,17 +30,15 @@ from foremanlite.serve.util import (
     resolve_filename,
     serve_file,
 )
-from foremanlite.vars import BUTANE_EXEC, VERSION
+from foremanlite.vars import BUTANE_DIR, BUTANE_EXEC
 
-blueprint: Blueprint = Blueprint("ignition", __name__)
-api = Api(blueprint, version=VERSION)
-ns = api.namespace("ignition", description="Get ignition config files")
+ns: Namespace = Namespace("ignition", description="Get ignition config files")
 _logger = get_logger("ignition")
 
 
-@ns.route("/butane/<string:filename>")
+@ns.route("/butane/<string:filename>", endpoint="butane")
 @ns.param("filename", "Filename to retreive")
-@api.doc(parser=machine_parser)
+@ns.doc(parser=machine_parser)
 class IgnitionFiles(Resource):
     """
     Resource representing renderable butane files.
@@ -52,7 +51,9 @@ class IgnitionFiles(Resource):
         """Get the given ignition file"""
 
         context = get_context()
-        resolved_fn = resolve_filename(context, filename)
+        resolved_fn = resolve_filename(
+            context, os.path.join(BUTANE_DIR, filename)
+        )
 
         if resolved_fn is None or not is_butane_file(resolved_fn):
             return ("File not found", 404)

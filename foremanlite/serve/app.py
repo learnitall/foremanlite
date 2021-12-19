@@ -5,10 +5,12 @@ import typing as t
 
 from flask import Flask
 from flask.logging import default_handler
+from flask_restx import Api
 
 from foremanlite.cli.config import Config
 from foremanlite.serve.context import ServeContext, get_context, set_context
-from foremanlite.serve.routes import register_blueprints
+from foremanlite.serve.routes import register_routes
+from foremanlite.vars import VERSION
 
 
 def start(
@@ -39,6 +41,12 @@ def start(
     """
 
     app = Flask("foremanlite")
+    api = Api(
+        title="foremanlite",
+        version=VERSION,
+    )
+    register_routes(api)
+    api.init_app(app)
     if not flask_logging:
         app.logger.removeHandler(default_handler)
 
@@ -51,7 +59,6 @@ def start(
     context = get_context()
 
     context.start()
-    register_blueprints(app)
     try:
         app.run()
     finally:

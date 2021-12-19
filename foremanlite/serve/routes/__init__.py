@@ -3,15 +3,15 @@
 """Module containing flask routes to load on start."""
 import typing as t
 
-from flask import Blueprint, Flask
+from flask_restx import Api, Namespace
 
 from foremanlite.serve.routes import ignition, ipxe
 
-blueprints: t.Tuple[Blueprint, ...] = (ipxe.blueprint, ignition.blueprint)
+namespaces: t.Tuple[Namespace, ...] = (ignition.ns, ipxe.ns)
 
 
-def register_blueprints(app: Flask):
-    """Register all of the blueprints within the routes module."""
+def register_routes(api: Api):
+    """Register all of the routes within the routes module."""
 
-    for blueprint in blueprints:
-        app.register_blueprint(blueprint)
+    for namespace in namespaces:
+        api.add_namespace(namespace)

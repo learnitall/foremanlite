@@ -33,4 +33,5 @@ IPXE_PASSTHROUGH = os.path.join(
 
 # --- BUTANE ---
 BUTANE_VERSION = "v0.13.1"
-BUTANE_EXEC = "butane"
+BUTANE_EXEC = "butane"  # relative to EXEC_DIR
+BUTANE_DIR = "butane"

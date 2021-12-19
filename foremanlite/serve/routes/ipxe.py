@@ -12,8 +12,8 @@ information on how templates are handled.
 import os
 from pathlib import Path
 
-from flask import Blueprint, request
-from flask_restx import Api, Resource
+from flask import request
+from flask_restx import Namespace, Resource
 
 from foremanlite.logging import get as get_logger
 from foremanlite.machine import Machine
@@ -32,12 +32,9 @@ from foremanlite.vars import (
     IPXE_PASSTHROUGH,
     IPXE_PROVISION,
     IPXE_START,
-    VERSION,
 )
 
-blueprint: Blueprint = Blueprint("ipxe", __name__)
-api = Api(blueprint, version=VERSION)
-ns = api.namespace(
+ns: Namespace = Namespace(
     "ipxe", description="Get iPXE files for provisioning machines"
 )
 _logger = get_logger("ipxe")
@@ -45,7 +42,7 @@ _logger = get_logger("ipxe")
 
 @ns.route("/<string:filename>", endpoint="ipxefiles")
 @ns.param("filename", "Filename to retrieve")
-@api.doc(parser=machine_parser)
+@ns.doc(parser=machine_parser)
 class IPXEFiles(Resource):
     """Resource representing iPXE files."""
 
