@@ -43,7 +43,7 @@ ns = api.namespace(
 _logger = get_logger("ipxe")
 
 
-@ns.route("/<string:filename>")
+@ns.route("/<string:filename>", endpoint="ipxefiles")
 @ns.param("filename", "Filename to retrieve")
 @api.doc(parser=machine_parser)
 class IPXEFiles(Resource):
