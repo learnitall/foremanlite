@@ -84,13 +84,13 @@ class ExactMachineSelector(MachineSelector):
 
     Parameters
     ----------
-    val : str
-        Value to match against.
     attr : str
         Attribute of Machine to match val against.
+    val : str
+        Value to match against.
     """
 
-    def __init__(self, val: str, attr: str):
+    def __init__(self, attr: str, val: str):
         self.val: str = val
         self.attr: str = attr
 
@@ -111,13 +111,13 @@ class RegexMachineSelector(MachineSelector):
 
     Parameters
     ----------
-    val : str
-        Regex string to match against.
     attr : str
         Attribute of Machine to match regex string against.
+    val : str
+        Regex string to match against.
     """
 
-    def __init__(self, val: str, attr: str):
+    def __init__(self, attr: str, val: str):
         self.reg: str = val
         self.attr: str = attr
 
@@ -286,3 +286,30 @@ class MachineGroup:
             selectors=selector_instances,
             group_vars=config.get("vars", None),
         )
+
+
+def filter_groups(
+    machine: Machine, groups: t.Iterable[MachineGroup]
+) -> t.Set[MachineGroup]:
+    """
+    Return the set of all groups the given machine belongs to.
+
+    Parameters
+    ----------
+    machine : Machine
+        Machine to find group membership of.
+    groups : iterable of MachineGroup
+        Iterable of MachineGroups to sort through.
+
+    Returns
+    -------
+    set of MachineGroup
+        Set of all the MachineGroups that the given Machine belongs to.
+    """
+
+    result = set()
+    for group in groups:
+        if group.matches(machine):
+            result.add(group)
+
+    return result

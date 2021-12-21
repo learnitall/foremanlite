@@ -17,14 +17,17 @@ from foremanlite.machine import (
     Machine,
     MachineGroup,
     RegexMachineSelector,
+    filter_groups,
 )
 
 
 def test_exact_machine_selector_matches_attributes_exactly():
     """Test ExactMachineSelector matches Machines by exact attributes."""
 
-    machine = Machine(name="test", mac=Mac("11:22:33:44"), arch=Arch.aarch64)
-    selector = ExactMachineSelector(attr="mac", val="11:22:33:44")
+    machine = Machine(
+        name="test", mac=Mac("11:22:33:44:55:66"), arch=Arch.aarch64
+    )
+    selector = ExactMachineSelector(attr="mac", val="11:22:33:44:55:66")
     assert selector.matches(machine)
     selector = ExactMachineSelector(attr="name", val="test2")
     assert not selector.matches(machine)
@@ -33,7 +36,9 @@ def test_exact_machine_selector_matches_attributes_exactly():
 def test_regex_machine_selector_matches_attributes_with_regex_str():
     """Test RegexMachineSelector matches Machines with regex strs."""
 
-    machine = Machine(name="test", mac=Mac("11:22:33:44"), arch=Arch.aarch64)
+    machine = Machine(
+        name="test", mac=Mac("11:22:33:44:55:66"), arch=Arch.aarch64
+    )
     selector = RegexMachineSelector(attr="mac", val="^11:22:.*$")
     assert selector.matches(machine)
     selector = RegexMachineSelector(attr="name", val="est")
@@ -61,3 +66,25 @@ def test_machine_group_from_json_raises_value_error_on_parse_error():
     bad_config = {"name": "test"}  # missing selectors
     with pytest.raises(ValueError):
         MachineGroup.from_json(json.dumps(bad_config))
+
+
+def test_filter_groups_returns_correct_set_of_group_membership():
+    """Test filter_groups returns the groups a machine is a part of."""
+
+    machine = Machine(
+        name="test", mac=Mac("11:22:33:44:55:66"), arch=Arch.x86_64
+    )
+    groups = {
+        MachineGroup(
+            "name is test",
+            selectors=[ExactMachineSelector(attr="name", val="test")],
+        ),
+        MachineGroup(
+            "name is tset",
+            selectors=[ExactMachineSelector(attr="name", val="tset")],
+        ),
+    }
+
+    matches = filter_groups(machine, groups)
+    assert len(matches) == 1
+    assert matches.pop().name == "name is test"
