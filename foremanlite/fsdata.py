@@ -227,7 +227,7 @@ class RenderFuncCallable(t.Protocol):
     python-typing-signature-typing-callable-for-function-with-kwargs
     """
 
-    def __call__(self, content: str, **context: t.Any) -> str:
+    def __call__(self, source: str, **context: t.Any) -> str:
         ...
 
 
@@ -267,10 +267,10 @@ class DataJinjaTemplate(DataFile):
             self._render_func = render_func
 
     @staticmethod
-    def render_jinja(content: str, **context: t.Any) -> str:
+    def render_jinja(source: str, **context: t.Any) -> str:
         """Render the given jinja2 template using kwargs as vars."""
 
-        return Template(content).render(**context)
+        return Template(source).render(**context)
 
     def render_func(self, *args, **kwargs) -> str:
         """

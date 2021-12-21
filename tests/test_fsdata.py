@@ -144,7 +144,7 @@ def test_data_jinja_template_can_use_custom_render_func(logfix, contentdir):
     path.write_text("content that will not be seen")
     result = "rendered"
 
-    def _my_render_func(content, **context) -> str:
+    def _my_render_func(source, **context) -> str:
         """Dumb render func that just returns static content."""
         return result
 
