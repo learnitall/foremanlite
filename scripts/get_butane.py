@@ -63,12 +63,14 @@ if __name__ == "__main__":
     parser.add_argument("dest")
     parser.add_argument(
         "--arch",
-        choices=(a.value for a in Architecture),
+        type=Architecture,
+        choices=[a for a in Architecture],
         default=Architecture.x86_64,
     )
     parser.add_argument(
         "--platform",
-        choices=(p.value for p in Platform),
+        type=Platform,
+        choices=[p for p in Platform],
         default=Platform.linux,
     )
     result = parser.parse_args()
