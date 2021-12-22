@@ -1,3 +1,7 @@
+# foremanlite stuffs
+etc/foremanlite/exec/*
+!etc/foremanlite/exec/.gitkeep
+
 # https://raw.githubusercontent.com/github/gitignore/master/Python.gitignore
 # Byte-compiled / optimized / DLL files
 __pycache__/

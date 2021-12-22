@@ -22,6 +22,9 @@ class Machine:
     """
     Represent information about a pxe-booted machine.
 
+    This definition is coupled with
+    foremanlite.serve.util.machine_parser.
+
     Attributes
     ----------
     name : str, optional
@@ -33,7 +36,6 @@ class Machine:
     provision: bool, optional
         If True, signals this machine should be provisioned on next boot.
         If False, signals this machine should not be provisioned on next boot.
-
     """
 
     mac: Mac
@@ -82,24 +84,13 @@ class ExactMachineSelector(MachineSelector):
 
     Parameters
     ----------
-    val : str
-        Value to match against.
     attr : str
         Attribute of Machine to match val against.
-
-    Examples
-    --------
-    >>> from foremanlite.machine import *
-    >>> machine = Machine(name="test", mac="11:22:33:44", arch=Arch.aarch64)
-    >>> selector = ExactMachineSelector(attr="mac", val="11:22:33:44")
-    >>> selector.matches(machine)
-    True
-    >>> selector = ExactMachineSelector(attr="name", val="test2")
-    >>> selector.matches(machine)
-    False
+    val : str
+        Value to match against.
     """
 
-    def __init__(self, val: str, attr: str):
+    def __init__(self, attr: str, val: str):
         self.val: str = val
         self.attr: str = attr
 
@@ -120,24 +111,13 @@ class RegexMachineSelector(MachineSelector):
 
     Parameters
     ----------
-    val : str
-        Regex string to match against.
     attr : str
         Attribute of Machine to match regex string against.
-
-    Examples
-    --------
-    >>> from foremanlite.machine import *
-    >>> machine = Machine(name="test", mac="11:22:33:44", arch=Arch.aarch64)
-    >>> selector = RegexMachineSelector(attr="mac", val="^11:22:.*$")
-    >>> selector.matches(machine)
-    True
-    >>> selector = ExactMachineSelector(attr="name", val="est")
-    >>> selector.matches(machine)
-    False
+    val : str
+        Regex string to match against.
     """
 
-    def __init__(self, val: str, attr: str):
+    def __init__(self, attr: str, val: str):
         self.reg: str = val
         self.attr: str = attr
 
@@ -266,30 +246,6 @@ class MachineGroup:
         ------
         ValueError
             if the config could not be parsed correctly
-
-        Examples
-        --------
-        >>> import json
-        >>> from foremanlite.machine import *
-        >>> config = {
-        ...     "name": "test",
-        ...     "selectors": [{
-        ...         "type": "exact",
-        ...         "val": "mymachine",
-        ...         "attr": "name"
-        ...     }],
-        ...     "vars": {
-        ...         "yougood?": True
-        ...     }
-        ... }
-        >>> mg = MachineGroup.from_json(json.dumps(config))
-        >>> machine = Machine(name="mymachine", mac=None, arch=None)
-        >>> mg.filter([machine])
-        1
-        >>> list(mg.machines)[0].name
-        'mymachine'
-        >>> mg.vars["yougood?"]
-        True
         """
 
         config = json.loads(json_str)
@@ -330,3 +286,30 @@ class MachineGroup:
             selectors=selector_instances,
             group_vars=config.get("vars", None),
         )
+
+
+def filter_groups(
+    machine: Machine, groups: t.Iterable[MachineGroup]
+) -> t.Set[MachineGroup]:
+    """
+    Return the set of all groups the given machine belongs to.
+
+    Parameters
+    ----------
+    machine : Machine
+        Machine to find group membership of.
+    groups : iterable of MachineGroup
+        Iterable of MachineGroups to sort through.
+
+    Returns
+    -------
+    set of MachineGroup
+        Set of all the MachineGroups that the given Machine belongs to.
+    """
+
+    result = set()
+    for group in groups:
+        if group.matches(machine):
+            result.add(group)
+
+    return result

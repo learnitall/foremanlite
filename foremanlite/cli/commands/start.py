@@ -1,10 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Start command group."""
+import os
+
 import click
+
+from foremanlite.cli.cli import Config
+from foremanlite.logging import setup as setup_logging
+from foremanlite.serve.app import start as start_app
+from foremanlite.vars import LOGFILE_NAME
 
 
 @click.command()
-def cli():
-    """Definition of the start command."""
-    click.echo("test")
+@click.pass_context
+def cli(ctx):
+    """Start foremanlite server."""
+
+    config: Config = ctx.obj
+    setup_logging(
+        verbose=config.verbose,
+        use_file=config.persist_log,
+        file_path=os.path.join(config.log_dir, LOGFILE_NAME),
+        use_stream=(not config.quiet),
+    )
+    start_app(config=config, flask_logging=False)
