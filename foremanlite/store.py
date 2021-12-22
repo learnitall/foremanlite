@@ -8,7 +8,7 @@ from dataclasses import asdict
 import redis
 
 from foremanlite.logging import get as get_logger
-from foremanlite.machine import Machine
+from foremanlite.machine import SHA256, Machine, get_uuid
 
 
 class BaseMachineStore(ABC):
@@ -19,7 +19,11 @@ class BaseMachineStore(ABC):
         """Put the given machine into the store."""
 
     @abstractmethod
-    def get(self, **kwargs) -> t.Set[Machine]:
+    def get(self, uuid: SHA256) -> t.Optional[Machine]:
+        """Get machine from the store with the given uuid."""
+
+    @abstractmethod
+    def find(self, **kwargs) -> t.Set[Machine]:
         """
         Get machine(s) from the store from the given attributes.
 
@@ -65,78 +69,55 @@ class RedisMachineStore(BaseMachineStore):
             self.logger.info(f"Connected to redis at {host}")
             return True
 
-    def _get_machine_list(self) -> t.List[Machine]:
-        """Get machine list from redis."""
-
-        current_list_str = self.redis.get(self.MACHINES_KEY)
-        if current_list_str is None:
-            current_list_str = "[]"
-        current_list: t.List[str] = json.loads(current_list_str)
-        current_machine_list = []
-        for machine_json in current_list:
-            current_machine_list.append(Machine.from_json(machine_json))
-        return current_machine_list
-
-    def _put_machine_list(self, machine_list: t.List[Machine]):
-        machine_list_json: t.List[str] = [m.to_json() for m in machine_list]
-        self.redis.set(self.MACHINES_KEY, json.dumps(machine_list_json))
-
-    @staticmethod
-    def _is_match(machine: Machine, **kwargs):
-        """Check that given machine contains all kwargs as fields."""
-
-        kwargs_set = set(kwargs.items())
-        machine_set = set(asdict(machine).items())
-        return kwargs_set.issubset(machine_set)
-
     def put(self, machine: Machine):
         """Store the given machine."""
 
-        current_list = self._get_machine_list()
-        current_list.append(machine)
-        self._put_machine_list(current_list)
+        uuid = get_uuid(machine=machine)
+        self.redis.set(uuid, machine.to_json())
+        machines = self.redis.get(self.MACHINES_KEY)
+        if machines is None:
+            self.redis.set(self.MACHINES_KEY, f'["{uuid}"]')
+        else:
+            machine_list = json.loads(machines)
+            machine_list.append(uuid)
+            self.redis.set(self.MACHINES_KEY, json.dumps(machine_list))
 
-    def get(self, **kwargs) -> t.Set[Machine]:
-        """Return set of machines based on given kwargs."""
+    def get(self, uuid: SHA256) -> t.Optional[Machine]:
+        """Return the machine with the given uuid."""
 
-        result = set()
-        current_list = self._get_machine_list()
-        for machine in current_list:
-            if self._is_match(machine, **kwargs):
-                result.add(machine)
-
-        return result
+        result: t.Optional[str] = self.redis.get(uuid)
+        if result is not None:
+            return Machine.from_json(result)
+        return None
 
     def all(self) -> t.Set[Machine]:
         """Return set of all machines in the redis store."""
 
-        return set(self._get_machine_list())
+        result: t.Set[Machine] = set()
+        machines = self.redis.get(self.MACHINES_KEY)
+        if machines is None:
+            return result
+        uuid_list = json.loads(machines)
+        for machine_uuid in uuid_list:
+            machine_json = self.redis.get(machine_uuid)
+            if machine_json is None:
+                continue
+            result.add(Machine.from_json(machine_json))
+        return result
 
+    def find(self, **kwargs) -> t.Set[Machine]:
+        """Return set of machines based on given kwargs."""
 
-def has_machine(
-    store: BaseMachineStore, machine: Machine
-) -> t.Optional[Machine]:
-    """
-    Check if store has given machine, returning value if it does.
+        result: t.Set[Machine] = set()
+        machines = self.all()
+        if len(machines) == 0:
+            return result
 
-    Essentially runs a `get` on the store with all the attributes
-    of the given machine to see if any machine in the store shares
-    the exact same attributes. If a single machine shares all the
-    same attributes, assume that the two machines are the same
-    and return the entry in the store.
+        kwargs_set = set(kwargs.items())
+        for machine in machines:
+            print(machine)
+            if kwargs_set.issubset(set(asdict(machine).items())):
+                print("match")
+                result.add(machine)
 
-    This is used to get more information about a known machine
-    from the store.
-
-    Returns
-    -------
-    Machine
-        If the given machine matches a machine in the store
-    None
-        Otherwise
-    """
-
-    matches = store.get(**asdict(machine))
-    if len(matches) != 1:
-        return None
-    return matches.pop()
+        return result

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Representation of machine information."""
+import hashlib
 import json
 import re
 import typing as t
@@ -8,6 +9,7 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 
 Mac = t.NewType("Mac", str)
+SHA256 = t.NewType("SHA256", str)
 
 
 class Arch(Enum):
@@ -68,6 +70,37 @@ class Machine:
         """Return Machine from json-formatted string."""
 
         return cls(**json.loads(json_str))
+
+
+def get_uuid(
+    mac: t.Optional[Mac] = None,
+    arch: t.Optional[Arch] = None,
+    machine: t.Optional[Machine] = None,
+) -> SHA256:
+    """
+    Comput uuid of a machine given a mac and its arch.
+
+    If machine is given, mac and arch will be pulled from the machine.
+
+    Raises
+    ------
+    ValueError
+        if mac and arch are not available.
+    """
+
+    if machine is not None:
+        mac = machine.mac
+        arch = machine.arch
+
+    if mac is None or arch is None:
+        raise ValueError(
+            "Need mac and arch to compute uuid, one or both "
+            f"is missing (mac={mac}, arch={arch}"
+        )
+
+    return SHA256(
+        hashlib.sha256(f"{str(mac)}{str(arch)}".encode("utf-8")).hexdigest()
+    )
 
 
 class MachineSelector(ABC):
