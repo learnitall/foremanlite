@@ -5,15 +5,16 @@ import logging
 import os
 import typing as t
 from dataclasses import dataclass
+from pathlib import Path
 
 import redis
 
-from foremanlite.cache import FileSystemCache
 from foremanlite.cli.config import Config
+from foremanlite.fsdata import FileSystemCache
 from foremanlite.logging import get as get_logger
 from foremanlite.machine import MachineGroup
 from foremanlite.store import BaseMachineStore, RedisMachineStore
-from foremanlite.vars import DATA_DIR, GROUPS_DIR
+from foremanlite.vars import DATA_DIR, EXEC_DIR, GROUPS_DIR
 
 
 @dataclass
@@ -25,9 +26,33 @@ class ServeContext:
     """
 
     config: Config
-    fs_cache: FileSystemCache
+    config_dir: Path
+    groups_dir: Path
+    data_dir: Path
+    exec_dir: Path
+    cache: FileSystemCache
     store: t.Optional[BaseMachineStore]
     groups: t.List[MachineGroup]
+
+    @staticmethod
+    def get_dirs(
+        config: Config, logger: logging.Logger
+    ) -> t.Tuple[Path, Path, Path, Path]:
+        """Return config, data and groups directories."""
+
+        config_dir = Path(config.config_dir).absolute()
+        data_dir = config_dir / DATA_DIR
+        groups_dir = config_dir / GROUPS_DIR
+        exec_dir = config_dir / EXEC_DIR
+
+        logger.info(
+            f"Using the following directories: config: {str(config_dir)},"
+            f"data: {str(data_dir.relative_to(config_dir))},"
+            f"groups: {str(groups_dir.relative_to(config_dir))}"
+            f"exec: {str(exec_dir.relative_to(config_dir))}"
+        )
+
+        return config_dir, data_dir, groups_dir, exec_dir
 
     @staticmethod
     def get_store(
@@ -118,12 +143,19 @@ class ServeContext:
         """Create ServeContext using the given Config instance."""
 
         logger = get_logger("ServeContext")
+        config_dir, data_dir, groups_dir, exec_dir = cls.get_dirs(
+            config, logger
+        )
         store = cls.get_store(config, logger)
-        fs_cache = cls.get_cache(config, logger)
+        cache = cls.get_cache(config, logger)
         groups = cls.get_groups(config, logger)
         return cls(
             config=config,
-            fs_cache=fs_cache,
+            config_dir=config_dir,
+            data_dir=data_dir,
+            groups_dir=groups_dir,
+            exec_dir=exec_dir,
+            cache=cache,
             store=store,
             groups=groups,
         )
@@ -134,12 +166,12 @@ class ServeContext:
         if isinstance(self.store, RedisMachineStore):
             self.store.ping()
 
-        self.fs_cache.start_watchdog()
+        self.cache.start_watchdog()
 
     def stop(self):
         """Run one-time teardown tasks."""
 
-        self.fs_cache.stop_watchdog()
+        self.cache.stop_watchdog()
 
 
 _CONTEXT: ServeContext
