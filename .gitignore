@@ -143,6 +143,7 @@ cython_debug/
 # foremanlite stuffs
 etc/foremanlite/exec/*
 !etc/foremanlite/exec/.gitkeep
+!etc/foremanlite/exec/gunicorn_conf_default.py
 !var/log
 var/log/foremanlite/*
 !var/log/foremanlite/.gitkeep

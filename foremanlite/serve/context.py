@@ -30,6 +30,7 @@ class ServeContext:
     groups_dir: Path
     data_dir: Path
     exec_dir: Path
+    log_dir: Path
     cache: FileSystemCache
     store: t.Optional[BaseMachineStore]
     groups: t.List[MachineGroup]
@@ -37,22 +38,38 @@ class ServeContext:
     @staticmethod
     def get_dirs(
         config: Config, logger: logging.Logger
-    ) -> t.Tuple[Path, Path, Path, Path]:
+    ) -> t.Tuple[Path, Path, Path, Path, Path]:
         """Return config, data and groups directories."""
 
         config_dir = Path(config.config_dir).absolute()
         data_dir = config_dir / DATA_DIR
         groups_dir = config_dir / GROUPS_DIR
         exec_dir = config_dir / EXEC_DIR
+        log_dir = Path(config.log_dir).absolute()
+
+        dirs = (
+            ("config", config_dir),
+            ("data", data_dir),
+            ("groups", groups_dir),
+            ("exec", exec_dir),
+            ("log", log_dir),
+        )
+        for name, directory in dirs:
+            if not os.path.exists(directory):
+                raise ValueError(
+                    f"{name.upper()} directory does not exist, unable to "
+                    f"start: {directory}"
+                )
 
         logger.info(
             f"Using the following directories: config: {str(config_dir)}, "
             f"data: {str(data_dir.relative_to(config_dir))}, "
             f"groups: {str(groups_dir.relative_to(config_dir))}, "
-            f"exec: {str(exec_dir.relative_to(config_dir))}"
+            f"exec: {str(exec_dir.relative_to(config_dir))}, "
+            f"log: {str(log_dir)}"
         )
 
-        return config_dir, data_dir, groups_dir, exec_dir
+        return config_dir, data_dir, groups_dir, exec_dir, log_dir
 
     @staticmethod
     def get_store(
@@ -143,7 +160,7 @@ class ServeContext:
         """Create ServeContext using the given Config instance."""
 
         logger = get_logger("ServeContext")
-        config_dir, data_dir, groups_dir, exec_dir = cls.get_dirs(
+        config_dir, data_dir, groups_dir, exec_dir, log_dir = cls.get_dirs(
             config, logger
         )
         store = cls.get_store(config, logger)
@@ -155,6 +172,7 @@ class ServeContext:
             data_dir=data_dir,
             groups_dir=groups_dir,
             exec_dir=exec_dir,
+            log_dir=log_dir,
             cache=cache,
             store=store,
             groups=groups,
