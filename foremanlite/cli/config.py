@@ -22,6 +22,14 @@ class Config:
     redis_help: str = "Use redis to handle tracking machine state."
     redis_url: str = "redis://localhost:6379"
     redis_url_help: str = "Connection URI to Redis server."
+    output_gunicorn_logs: bool = True
+    output_gunicorn_logs_help: str = "Print gunicorn logs to the screen"
+    gunicorn_layer_default: bool = True
+    gunicorn_layer_default_help: str = (
+        "Layer gunicorn config on top of "
+        "the default gunicorn config. This lets user configurations use "
+        "and override variables in the gunicorn config."
+    )
 
     def __hash__(self):
         return hash(repr(self))

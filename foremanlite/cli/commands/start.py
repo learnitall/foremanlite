@@ -7,7 +7,7 @@ import click
 
 from foremanlite.cli.cli import Config
 from foremanlite.logging import setup as setup_logging
-from foremanlite.serve.app import start as start_app
+from foremanlite.serve.app import setup, start
 from foremanlite.vars import LOGFILE_NAME
 
 
@@ -23,4 +23,5 @@ def cli(ctx):
         file_path=os.path.join(config.log_dir, LOGFILE_NAME),
         use_stream=(not config.quiet),
     )
-    start_app(config=config, flask_logging=False)
+    setup(config=config)
+    start()
