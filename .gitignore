@@ -1,7 +1,3 @@
-# foremanlite stuffs
-etc/foremanlite/exec/*
-!etc/foremanlite/exec/.gitkeep
-
 # https://raw.githubusercontent.com/github/gitignore/master/Python.gitignore
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -23,8 +19,8 @@ lib/
 lib64/
 parts/
 sdist/
-var/
-wheels/
+var/*
+wheels
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -143,3 +139,10 @@ dmypy.json
 cython_debug/
 
 .vscode/
+
+# foremanlite stuffs
+etc/foremanlite/exec/*
+!etc/foremanlite/exec/.gitkeep
+!var/log
+var/log/foremanlite/*
+!var/log/foremanlite/.gitkeep
