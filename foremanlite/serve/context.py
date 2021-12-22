@@ -46,9 +46,9 @@ class ServeContext:
         exec_dir = config_dir / EXEC_DIR
 
         logger.info(
-            f"Using the following directories: config: {str(config_dir)},"
-            f"data: {str(data_dir.relative_to(config_dir))},"
-            f"groups: {str(groups_dir.relative_to(config_dir))}"
+            f"Using the following directories: config: {str(config_dir)}, "
+            f"data: {str(data_dir.relative_to(config_dir))}, "
+            f"groups: {str(groups_dir.relative_to(config_dir))}, "
             f"exec: {str(exec_dir.relative_to(config_dir))}"
         )
 
