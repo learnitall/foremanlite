@@ -9,24 +9,22 @@ be treated as a jinja template. See
 `foremanlite.serve.util.render_machine_template` for
 information on how templates are handled.
 """
-import os
-from pathlib import Path
-
-from flask import request
+from flask import request, url_for
+from flask.templating import render_template_string
 from flask_restx import Namespace, Resource
 
+from foremanlite.fsdata import DataJinjaTemplate
 from foremanlite.logging import get as get_logger
-from foremanlite.machine import Machine
+from foremanlite.machine import Machine, filter_groups
 from foremanlite.serve.context import get_context
 from foremanlite.serve.util import (
-    find_machine_groups,
-    find_stored_machine,
+    construct_vars,
     machine_parser,
     parse_machine_from_request,
     repr_request,
     resolve_filename,
-    serve_file,
 )
+from foremanlite.store import has_machine
 from foremanlite.vars import (
     IPXE_DIR,
     IPXE_PASSTHROUGH,
@@ -41,22 +39,25 @@ _logger = get_logger("ipxe")
 
 
 @ns.route("/<string:filename>", endpoint="ipxefiles")
-@ns.param("filename", "Filename to retrieve")
+@ns.param("filename", "Filename of iPXE file to retrieve")
 @ns.doc(parser=machine_parser)
 class IPXEFiles(Resource):
     """Resource representing iPXE files."""
 
     @staticmethod
     def get(filename: str):
-        """Get the given iPXE file."""
+        """Get the requested iPXE file."""
 
+        endpoint = "ipxe.ipxefiles"  # constant for convenience
         context = get_context()
-        resolved_fn = resolve_filename(
-            context, os.path.join(IPXE_DIR, filename)
-        )
+        ipxe_dir_path = context.data_dir / IPXE_DIR
+        resolved_fn = resolve_filename(filename, ipxe_dir_path)
         if resolved_fn is None:
-            return ("File not found", 404)
+            return ("Requested iPXE file not found", 404)
 
+        # Now we need to determine what machine is making the
+        # request, so we can determine if needs to be provisioned
+        # or any variables that are needed to do the render
         try:
             machine_request: Machine = parse_machine_from_request(request)
         except (ValueError, TypeError) as err:
@@ -64,30 +65,47 @@ class IPXEFiles(Resource):
                 "Unable to get machine info from request: "
                 f"{repr_request(request)}"
             )
-            return (f"Unable to handle request: {err}", 500)
+            return (f"Unable to handle request: {err}", 400)
 
-        machine_request = find_stored_machine(
-            context, machine_request, add_if_missing=True
-        )
-        machine_groups = find_machine_groups(context, machine_request)
+        # by default, always provision a machine
+        if machine_request.provision is None:
+            machine_request.provision = True
 
-        extra_vars = {}
-        if resolved_fn == IPXE_START:
-            if machine_request.provision or machine_request.provision is None:
-                target = IPXE_PROVISION
+        # check if the requested machine is known
+        if context.store is not None:
+            result = has_machine(context.store, machine_request)
+            if result is None:
+                machine = machine_request
+                context.store.put(machine)
             else:
-                target = IPXE_PASSTHROUGH
-            # Inside our templates we use url_for, which adds the /ipxe/
-            # prefix, since that is the namespace we are working in
-            # In order to properly serve files then, need to translate
-            # path on disk to path in url by removing the prefix
-            extra_vars["filename"] = Path(target).relative_to(IPXE_DIR)
+                machine = result
+        else:
+            machine = machine_request
 
-        return serve_file(
-            context,
-            resolved_fn,
-            _logger,
-            machine=machine_request,
-            groups=machine_groups,
-            extra_vars=extra_vars,
-        )
+        groups = filter_groups(machine, context.groups)
+
+        # Determine chain target url
+        extra_vars = {}
+        if resolved_fn == ipxe_dir_path / IPXE_START:
+            if machine.provision:
+                chain_target = IPXE_PROVISION
+            else:
+                chain_target = IPXE_PASSTHROUGH
+            extra_vars["chain_url"] = url_for(endpoint, filename=chain_target)
+
+        template_vars = construct_vars(machine, groups)
+        template_vars.update(extra_vars)
+
+        try:
+            content = DataJinjaTemplate(
+                resolved_fn,
+                cache=context.cache,
+                jinja_render_func=render_template_string,
+            )
+            return (content.render(**template_vars), 200)
+        except ValueError as err:
+            _logger.warning(
+                f"Error occurred while rendering {str(resolved_fn)} "
+                f"with vars {template_vars}: {err}"
+            )
+            raise err

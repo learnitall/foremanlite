@@ -10,26 +10,22 @@ be treated as a jinja template. See
 `foremanlite.serve.util.render_machine_template` for
 information on how templates are handled.
 """
-import os
-
-from flask import request
+from flask import render_template_string, request
 from flask_restx import Namespace
 from flask_restx.resource import Resource
 
-from foremanlite.butane import is_butane_file, render_butane_content
+from foremanlite.butane import DataButaneFile
 from foremanlite.logging import get as get_logger
-from foremanlite.machine import Machine
+from foremanlite.machine import Machine, filter_groups
 from foremanlite.serve.context import get_context
 from foremanlite.serve.util import (
-    find_machine_groups,
-    find_stored_machine,
-    is_template,
+    construct_vars,
     machine_parser,
     parse_machine_from_request,
     repr_request,
     resolve_filename,
-    serve_file,
 )
+from foremanlite.store import has_machine
 from foremanlite.vars import BUTANE_DIR, BUTANE_EXEC
 
 ns: Namespace = Namespace("ignition", description="Get ignition config files")
@@ -37,7 +33,7 @@ _logger = get_logger("ignition")
 
 
 @ns.route("/butane/<string:filename>", endpoint="butane")
-@ns.param("filename", "Filename to retreive")
+@ns.param("filename", "Butane file to render")
 @ns.doc(parser=machine_parser)
 class IgnitionFiles(Resource):
     """
@@ -48,52 +44,52 @@ class IgnitionFiles(Resource):
 
     @staticmethod
     def get(filename: str):
-        """Get the given ignition file"""
+        """Get the given butane file and render it."""
 
         context = get_context()
-        resolved_fn = resolve_filename(
-            context, os.path.join(BUTANE_DIR, filename)
-        )
+        butane_dir_path = context.data_dir / BUTANE_DIR
+        butane_exec_path = context.exec_dir / BUTANE_EXEC
+        resolved_fn = resolve_filename(filename, butane_dir_path)
+        if resolved_fn is None:
+            return ("Requested butane file not found", 404)
 
-        if resolved_fn is None or not is_butane_file(resolved_fn):
-            return ("File not found", 404)
-
+        # Determine what machine is making the request, so
+        # we know which variables to pass to the butane
+        # template
         try:
             machine_request: Machine = parse_machine_from_request(request)
-        except (ValueError, TypeError):
-            msg = (
+        except (ValueError, TypeError) as err:
+            _logger.warning(
                 "Unable to get machine info from request: "
                 f"{repr_request(request)}"
             )
-            _logger.warning(msg)
-            return (msg, 500)
+            return (f"Unable to handle request: {err}", 400)
 
-        machine_request = find_stored_machine(
-            context, machine_request, add_if_missing=True
-        )
-
-        if is_template(filename):
-            machine_groups = find_machine_groups(context, machine_request)
+        # check if the requested machine is known
+        if context.store is not None:
+            result = has_machine(context.store, machine_request)
+            if result is None:
+                machine = machine_request
+                context.store.put(machine)
+            else:
+                machine = result
         else:
-            machine_groups = None
+            machine = machine_request
 
-        # Get file contents so we can render as butane
-        result, code = serve_file(
-            ctx=context,
-            target=resolved_fn,
-            logger=_logger,
-            machine=machine_request,
-            groups=machine_groups,
-        )
-
-        if code != 200:
-            return (result, code)
+        groups = filter_groups(machine, context.groups)
+        template_vars = construct_vars(machine, groups)
 
         try:
-            result = render_butane_content(result, BUTANE_EXEC)
+            content = DataButaneFile(
+                resolved_fn,
+                butane_exec=butane_exec_path,
+                cache=context.cache,
+                jinja_render_func=render_template_string,
+            )
+            return (content.render(**template_vars), 200)
         except ValueError as err:
-            msg = f"Unable to serve ignition config for {resolved_fn}: {err}"
-            _logger.warning(msg)
-            return (msg, 500)
-        else:
-            return (result, 200)
+            _logger.warning(
+                f"Error occurred while rendering {str(resolved_fn)} "
+                f"with vars {template_vars}: {err}"
+            )
+            raise err
