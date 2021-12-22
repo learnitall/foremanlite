@@ -6,14 +6,16 @@ from dataclasses import asdict
 from pathlib import Path
 
 from flask.wrappers import Request
+from flask_restx.inputs import boolean
 from flask_restx.reqparse import ParseResult, RequestParser
 
-from foremanlite.machine import Arch, Mac, Machine, MachineGroup
+from foremanlite.machine import Arch, Mac, Machine, MachineGroup, get_uuid
+from foremanlite.store import BaseMachineStore
 
 machine_parser: RequestParser = RequestParser()
 machine_parser.add_argument("mac", type=Mac, required=True)
 machine_parser.add_argument("arch", type=Arch, required=True)
-machine_parser.add_argument("provision", type=bool, required=False)
+machine_parser.add_argument("provision", type=boolean, required=False)
 machine_parser.add_argument("name", type=str, required=False)
 
 
@@ -125,3 +127,35 @@ def construct_vars(
             result.update(**group.vars)
 
     return result
+
+
+def merge_with_store(
+    store: BaseMachineStore, machine_request: Machine
+) -> Machine:
+    """
+    Check if given machine is in the store.
+
+    If a machine in the store as the same hash as the given machine,
+    do nothing and return the given machine.
+
+    If the machine is not in the store, then add it.
+
+    If the machine in the store has a different hash than the given machine,
+    then update the machine in the store with the values of the given
+    machine and return the result.
+    """
+
+    result = store.get(get_uuid(machine=machine_request))
+    if result is None:
+        machine = machine_request
+        store.put(machine)
+    elif hash(result) != hash(machine_request):
+        merged = asdict(result)
+        merged.update(asdict(machine_request))
+        merged_machine = Machine(**merged)
+        store.put(merged_machine)
+        machine = merged_machine
+    else:
+        machine = result
+
+    return machine

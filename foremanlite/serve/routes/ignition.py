@@ -21,11 +21,11 @@ from foremanlite.serve.context import get_context
 from foremanlite.serve.util import (
     construct_vars,
     machine_parser,
+    merge_with_store,
     parse_machine_from_request,
     repr_request,
     resolve_filename,
 )
-from foremanlite.store import has_machine
 from foremanlite.vars import BUTANE_DIR, BUTANE_EXEC
 
 ns: Namespace = Namespace("ignition", description="Get ignition config files")
@@ -67,12 +67,7 @@ class IgnitionFiles(Resource):
 
         # check if the requested machine is known
         if context.store is not None:
-            result = has_machine(context.store, machine_request)
-            if result is None:
-                machine = machine_request
-                context.store.put(machine)
-            else:
-                machine = result
+            machine = merge_with_store(context.store, machine_request)
         else:
             machine = machine_request
 
@@ -86,7 +81,7 @@ class IgnitionFiles(Resource):
                 cache=context.cache,
                 jinja_render_func=render_template_string,
             )
-            return (content.render(**template_vars), 200)
+            return (content.render(**template_vars).decode("utf-8"), 200)
         except ValueError as err:
             _logger.warning(
                 f"Error occurred while rendering {str(resolved_fn)} "
