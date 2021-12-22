@@ -5,8 +5,6 @@ Hold various foremanlite variables.
 
 Be sure to sync with version in pyproject.toml
 """
-import os
-
 VERSION: str = "0.1.0"
 
 # --- CLI ---
@@ -23,13 +21,9 @@ EXEC_DIR = "exec"  # directory containing executables or their configs
 # These need to be configured in the data directory
 IPXE_DIR = "ipxe"
 # endpoint first hit by machines, configured in dhcp
-IPXE_START = os.path.join(IPXE_DIR, "boot.ipxe.j2")
-IPXE_PROVISION = os.path.join(
-    IPXE_DIR, "provision.ipxe"
-)  # endpoint hit when provisioned
-IPXE_PASSTHROUGH = os.path.join(
-    IPXE_DIR, "pass.ipxe"
-)  # endpoint hit when not provisioning
+IPXE_START = "boot.ipxe.j2"
+IPXE_PROVISION = "provision.ipxe"  # endpoint hit when provisioned
+IPXE_PASSTHROUGH = "pass.ipxe"  # endpoint hit when not provisioning
 
 # --- BUTANE ---
 BUTANE_VERSION = "v0.13.1"
