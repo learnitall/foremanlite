@@ -111,3 +111,32 @@ class RedisMachineStore(BaseMachineStore):
         """Return set of all machines in the redis store."""
 
         return set(self._get_machine_list())
+
+
+def has_machine(
+    store: BaseMachineStore, machine: Machine
+) -> t.Optional[Machine]:
+    """
+    Check if store has given machine, returning value if it does.
+
+    Essentially runs a `get` on the store with all the attributes
+    of the given machine to see if any machine in the store shares
+    the exact same attributes. If a single machine shares all the
+    same attributes, assume that the two machines are the same
+    and return the entry in the store.
+
+    This is used to get more information about a known machine
+    from the store.
+
+    Returns
+    -------
+    Machine
+        If the given machine matches a machine in the store
+    None
+        Otherwise
+    """
+
+    matches = store.get(**asdict(machine))
+    if len(matches) != 1:
+        return None
+    return matches.pop()
