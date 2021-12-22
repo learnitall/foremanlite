@@ -219,9 +219,9 @@ class DataFile:
         return self.path.read_bytes()
 
 
-class RenderFuncCallable(t.Protocol):
+class JinjaRenderFuncCallable(t.Protocol):
     """
-    Type definition for template render function.
+    Type definition for jinja render function.
 
     See https://newbedev.com/
     python-typing-signature-typing-callable-for-function-with-kwargs
@@ -246,7 +246,7 @@ class DataJinjaTemplate(DataFile):
         Wrapped pathlib.Path instance to work with.
     cache : FileSystemCache, optional
         If available, FileSystemCache to pull cached content from.
-    render_func : RenderFuncCallable, optional
+    jinja_render_func : JinjaRenderFuncCallable, optional
         Function to use in order to render the template. Defaults
         to the static method `render_jinja`, which uses
         `jinja2.Template`. Compatible functions take the string
@@ -258,13 +258,13 @@ class DataJinjaTemplate(DataFile):
         self,
         path: Path,
         cache: t.Optional[FileSystemCache] = None,
-        render_func: RenderFuncCallable = None,
+        jinja_render_func: JinjaRenderFuncCallable = None,
     ):
         super().__init__(path, cache)
-        if render_func is None:
-            self._render_func = self.render_jinja
+        if jinja_render_func is None:
+            self._jinja_render_func = self.render_jinja
         else:
-            self._render_func = render_func
+            self._jinja_render_func = jinja_render_func
 
     @staticmethod
     def render_jinja(source: str, **context: t.Any) -> str:
@@ -272,16 +272,16 @@ class DataJinjaTemplate(DataFile):
 
         return Template(source).render(**context)
 
-    def render_func(self, *args, **kwargs) -> str:
+    def jinja_render_func(self, *args, **kwargs) -> str:
         """
-        Pass given args and kwargs to stored render function.
+        Pass given args and kwargs to stored jinja render function.
 
         Given render functions are static, but some type checkers
         struggle to understand that (i.e. pylance). Having this wrapper
         method helps get around false-positive type issues.
         """
 
-        return self._render_func(*args, **kwargs)
+        return self._jinja_render_func(*args, **kwargs)
 
     def render(self, **context: t.Any) -> bytes:
         """
@@ -299,4 +299,4 @@ class DataJinjaTemplate(DataFile):
         """
 
         content = self.read().decode("utf-8")
-        return self.render_func(content, **context).encode("utf-8")
+        return self.jinja_render_func(content, **context).encode("utf-8")
