@@ -298,5 +298,8 @@ class DataJinjaTemplate(DataFile):
             If the file cannot be read
         """
 
+        get_logger("DataJinjaTemplate").debug(
+            f"Rendering {self.path} with args: {context}"
+        )
         content = self.read().decode("utf-8")
         return self.jinja_render_func(content, **context).encode("utf-8")

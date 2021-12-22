@@ -77,9 +77,9 @@ class IPXEFiles(Resource):
         else:
             machine = machine_request
 
-        _logger.debug(machine)
-        _logger.debug(machine_request)
+        _logger.info(f"Got request from machine {machine}: {str(resolved_fn)}")
         groups = filter_groups(machine, context.groups)
+        _logger.info(f"Found groups for {machine}: {groups}")
 
         # Determine chain target url
         extra_vars = {}
@@ -94,9 +94,6 @@ class IPXEFiles(Resource):
 
         template_vars = construct_vars(machine, groups)
         template_vars.update(extra_vars)
-        _logger.debug(
-            f"Rendering {str(resolved_fn)} with vars {template_vars}"
-        )
         try:
             content = DataJinjaTemplate(
                 resolved_fn,

@@ -71,7 +71,11 @@ class IgnitionFiles(Resource):
         else:
             machine = machine_request
 
+        _logger.info(
+            f"Got request from machine {machine} for {str(resolved_fn)}"
+        )
         groups = filter_groups(machine, context.groups)
+        _logger.info(f"Found groups for machine {machine}: {groups}")
         template_vars = construct_vars(machine, groups)
 
         try:
