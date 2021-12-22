@@ -21,7 +21,8 @@ def cli(ctx):
     config: Config = ctx.obj
     if config.verbose:
         click.echo(
-            f"Foremanlite {VERSION} on {' '.join(platform.architecture())} "
+            f"Foremanlite {VERSION} on "
+            f"{' '.join(platform.architecture()).strip()} "
             f"with Python {platform.python_version()}"
         )
     else:
