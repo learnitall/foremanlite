@@ -19,6 +19,6 @@ COPY . /app
 RUN ${pbin} install --no-dev
 
 FROM python:3.9-slim
-
+WORKDIR /app
 COPY --from=builder /app /app
-ENTRYPOINT ["/app/.venv/bin/gunicorn", "foremanlite.main:app"]
+ENTRYPOINT [".venv/bin/python", "-m", "foremanlite.cli"]
