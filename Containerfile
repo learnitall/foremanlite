@@ -21,4 +21,6 @@ RUN ${pbin} install --no-dev
 FROM python:3.9-slim
 WORKDIR /app
 COPY --from=builder /app /app
+COPY --from=builder /app/etc/foremanlite /etc/foremanlite
+COPY --from=builder /app/var/log/foremanlite /var/log/foremanlite
 ENTRYPOINT [".venv/bin/python", "-m", "foremanlite.cli"]
