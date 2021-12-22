@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """General utilities for helping to serve foremanlite requests."""
-import logging
 import typing as t
 from dataclasses import asdict
+from pathlib import Path
 
-from flask import render_template_string
 from flask.wrappers import Request
 from flask_restx.reqparse import ParseResult, RequestParser
 
 from foremanlite.machine import Arch, Mac, Machine, MachineGroup
-from foremanlite.serve.app import ServeContext
 
 machine_parser: RequestParser = RequestParser()
 machine_parser.add_argument("mac", type=Mac, required=True)
@@ -69,16 +67,10 @@ def repr_request(req: Request) -> str:
     return f"{req.method} {req.full_path} from {req.remote_addr}"
 
 
-def is_template(filename: str) -> bool:
-    """Return wether or not the given file is a template."""
-
-    return filename.endswith(".j2")
-
-
 def resolve_filename(
-    ctx: ServeContext,
     requested: str,
-) -> t.Optional[str]:
+    base_path: Path,
+) -> t.Optional[Path]:
     """
     Determine the name of the requested file in the cache.
 
@@ -90,179 +82,46 @@ def resolve_filename(
 
     Parameters
     ----------
-    ctx : ServeContext
-        ServeContext instance to get cache and other runtime variables from.
     requested : str
-        Filename requested from a client.
+        Filename or path requested from a client.
+    base_path : Path
+        Path representing base directory where files are served from the
+        relevant endpoint. For instance, if an endpoint serves files
+        out of /etc/foremanlite/my_endpoint, and a client wants
+        a_dir/a_file, then we need to return
+        /etc/foremanlite/my_endpoint/a_dir/a_file
 
     Returns
     -------
-    str
-        Equivalent name of the requested file within the cache. This
-        will either be the requested filename if it exists, or the
-        filename of the associated template.
+    Path
+        Resolved path to the given file.
     None
         The requested filename does not exist and a template for it does
         not exist either.
     """
 
-    template = requested + ".j2"
-    if ctx.fs_cache.file_exists(requested):
-        return requested
-    if ctx.fs_cache.file_exists(template):
-        return template
+    requested_path = base_path / requested
+    potential_template = base_path / (requested + ".j2")
+    if requested_path.exists():
+        return requested_path
+    if potential_template.exists():
+        return potential_template
     return None
 
 
-def render_machine_template(
-    ctx: ServeContext,
-    target: str,
-    machine: t.Optional[Machine] = None,
-    groups: t.Optional[t.Set[MachineGroup]] = None,
-    extra_vars: t.Optional[t.Dict[str, t.Any]] = None,
-) -> str:
+def construct_vars(
+    machine: Machine, groups: t.Set[MachineGroup]
+) -> t.Dict[str, t.Any]:
     """
-    Render jinja template pulling vars from given machine and groups.
+    Construct list of known variables of the machine and its groups.
 
-    Parameters
-    ----------
-    ctx : ServeContext
-        Context to use while rendering the template
-    target : str
-        Name of jinja template to render. Will be pulled
-        using context's fs_cache.
-    machine : Machine, optional
-        Machine whose's attributes will be made available
-        as variables in the jinja template. Access to these
-        attributes is available under the 'machine' key.
-    groups : set of MachineGroup, optional
-        Optional set of MachineGroup instances to pass
-        whose variables will be made available to the template.
-        Access to these variables is available under the
-        'groups' key, with each group's key being its
-        configured name.
-    extra_vars : dict, optional
-        Additional variables to expose to the template.
-        These will be made available under the 'vars' key.
-
-    Returns
-    -------
-    str
-        Content of rendered template
+    Merges all the group's variables and the machine's attributes
+    into the same dictionary.
     """
 
-    content = ctx.fs_cache.read_file(target).decode("utf-8")
-    return render_template_string(
-        content, machine=machine, groups=groups, vars=extra_vars
-    )
+    result = asdict(machine)
+    for group in groups:
+        if group.vars is not None:
+            result.update(**group.vars)
 
-
-def serve_file(
-    ctx: ServeContext,
-    target: str,
-    logger: logging.Logger,
-    machine: t.Optional[Machine] = None,
-    groups: t.Optional[t.Set[MachineGroup]] = None,
-    extra_vars: t.Optional[t.Dict[str, t.Any]] = None,
-) -> t.Tuple[str, int]:
-    """
-    Return the given target file using the given Context.
-
-    For more information on how templates are rendered,
-    see `render_machine_template`. Parameters to this
-    function are coupled with `render_machine_template`'s
-    parameters.
-
-    Parameters
-    ----------
-    ctx : ServeContext
-        ServeContext to pull cache instance from
-    target : str
-        File to return content of.
-    logger : logging.Logger
-        Logger to send warning messages to if file was unable to
-        be served successfully
-    machine : Machine, optional
-        Machine to expose to template for rendering.
-    groups : set of MachineGroup, optional
-        Set of MachineGroups to expose to template for rendering
-    extra_vars : dict, optional
-        Additional vars to be made available to the template.
-
-    Returns
-    -------
-    (str, int)
-        If file was read successfully, will return (content, 200).
-        Otherwise, will return (error message, 500)
-    """
-
-    err_msg: str = ""
-    content: str = ""
-    success: bool = False
-    if is_template(target):
-        try:
-            content = render_machine_template(
-                ctx=ctx,
-                target=target,
-                machine=machine,
-                groups=groups,
-                extra_vars=extra_vars,
-            )
-        except ValueError as err:
-            err_msg = f"Unable to render or serve template at {target}: {err}"
-        else:
-            success = True
-    else:
-        try:
-            content = ctx.fs_cache.read_file(target).decode("utf-8")
-        except ValueError as err:
-            err_msg = f"Unable to serve file {target}: {err}"
-        else:
-            success = True
-
-    if success:
-        return (content, 200)
-
-    logger.warning(err_msg)
-    return (err_msg, 500)
-
-
-def find_machine_groups(
-    ctx: ServeContext, machine: Machine
-) -> t.Set[MachineGroup]:
-    """Get MachineGroup instances which the given Machine belongs to."""
-
-    if ctx.groups is None:
-        return set()
-    return {group for group in ctx.groups if group.matches(machine)}
-
-
-def find_stored_machine(
-    ctx: ServeContext, machine: Machine, add_if_missing: bool = False
-) -> Machine:
-    """
-    Find matching machine in store for the given machine.
-
-    If `add_if_missing` is given, then the given machine
-    will be added into the context's store if the machine
-    was not present.
-
-    Returns
-    -------
-    Machine
-        If a match is found, a new Machine is returned with
-        the combined attributes of the given machine and the
-        machine in the store. Otherwise the given machine
-        is returned.
-    """
-
-    if ctx.store is not None:
-        params = asdict(machine)
-        stored = ctx.store.get(**params)
-        if len(stored) == 1:  # exact match
-            params.update(asdict(stored))
-            return Machine(**params)
-        if add_if_missing:
-            ctx.store.put(machine)
-
-    return machine
+    return result
