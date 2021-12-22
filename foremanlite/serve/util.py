@@ -122,6 +122,7 @@ def construct_vars(
     """
 
     result = asdict(machine)
+    result["arch"] = str(result["arch"].value)
     for group in groups:
         if group.vars is not None:
             result.update(**group.vars)
