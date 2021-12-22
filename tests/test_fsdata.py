@@ -149,7 +149,7 @@ def test_data_jinja_template_can_use_custom_render_func(logfix, contentdir):
         return result
 
     assert (
-        DataJinjaTemplate(path, render_func=_my_render_func)
+        DataJinjaTemplate(path, jinja_render_func=_my_render_func)
         .render(unused_var=True)
         .decode("utf-8")
         == result
