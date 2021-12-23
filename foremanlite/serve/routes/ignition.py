@@ -16,15 +16,11 @@ from flask_restx.resource import Resource
 
 from foremanlite.butane import DataButaneFile
 from foremanlite.logging import get as get_logger
-from foremanlite.machine import Machine, filter_groups
 from foremanlite.serve.context import get_context
 from foremanlite.serve.util import (
-    construct_vars,
+    construct_machine_vars,
+    handle_template_request,
     machine_parser,
-    merge_with_store,
-    parse_machine_from_request,
-    repr_request,
-    resolve_filename,
 )
 from foremanlite.vars import BUTANE_DIR, BUTANE_EXEC
 
@@ -49,46 +45,18 @@ class IgnitionFiles(Resource):
         context = get_context()
         butane_dir_path = context.data_dir / BUTANE_DIR
         butane_exec_path = context.exec_dir / BUTANE_EXEC
-        resolved_fn = resolve_filename(filename, butane_dir_path)
-        if resolved_fn is None:
-            return ("Requested butane file not found", 404)
-
-        # Determine what machine is making the request, so
-        # we know which variables to pass to the butane
-        # template
-        try:
-            machine_request: Machine = parse_machine_from_request(request)
-        except (ValueError, TypeError) as err:
-            _logger.warning(
-                "Unable to get machine info from request: "
-                f"{repr_request(request)}"
-            )
-            return (f"Unable to handle request: {err}", 400)
-
-        # check if the requested machine is known
-        if context.store is not None:
-            machine = merge_with_store(context.store, machine_request)
-        else:
-            machine = machine_request
-
-        _logger.info(
-            f"Got request from machine {machine} for {str(resolved_fn)}"
+        template_factory = lambda path: DataButaneFile(
+            path,
+            butane_exec=butane_exec_path,
+            cache=context.cache,
+            jinja_render_func=render_template_string,
         )
-        groups = filter_groups(machine, context.groups)
-        _logger.info(f"Found groups for machine {machine}: {groups}")
-        template_vars = construct_vars(machine, groups)
-
-        try:
-            content = DataButaneFile(
-                resolved_fn,
-                butane_exec=butane_exec_path,
-                cache=context.cache,
-                jinja_render_func=render_template_string,
-            )
-            return (content.render(**template_vars).decode("utf-8"), 200)
-        except ValueError as err:
-            _logger.warning(
-                f"Error occurred while rendering {str(resolved_fn)} "
-                f"with vars {template_vars}: {err}"
-            )
-            raise err
+        return handle_template_request(
+            context,
+            _logger,
+            request,
+            filename,
+            butane_dir_path,
+            template_factory,
+            construct_machine_vars,
+        )
