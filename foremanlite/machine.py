@@ -259,7 +259,8 @@ class MachineGroup:
             "selectors": [
                 {
                     "type": type,
-                    attr: val,
+                    "attr": attr,
+                    "val": val
                 },
                 ...
             ],
