@@ -1,0 +1,10 @@
+#!ipxe
+echo "Provisioning machine with mac {{ mac }} on arch {{ arch }}"
+
+{% if chain_endpoint is defined %}
+echo "Chaining to {{ chain_endpoint }}"
+chain --autofree {{ url_for(chain_endpoint, _external=True, arch="${arch}" }}
+{% else %}
+echo "Booting netboot.xyz"
+chain --autofree http://boot.netboot.xyz/ipxe/netboot.efi
+{% endif %}

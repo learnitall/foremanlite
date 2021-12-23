@@ -3,4 +3,8 @@
 cpuid --ext 29 && set arch x86_64 || set arch i386
 iseq ${buildarch} arm64 && set arch arm64 ||
 
-chain --autofree {{ chain_url }}
+{% if provision %}
+chain --autofree {{ url_for(endpoint, provisionfile, _external=True, arch="${arch}" }}
+{% else %}
+chain --autofree {{ url_for(endpoint, passfile, _external=True) }}
+{% endif %}

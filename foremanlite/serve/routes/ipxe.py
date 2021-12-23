@@ -11,7 +11,7 @@ information on how templates are handled.
 """
 import typing as t
 
-from flask import request, url_for
+from flask import request
 from flask.templating import render_template_string
 from flask_restx import Namespace, Resource
 
@@ -23,12 +23,7 @@ from foremanlite.serve.util import (
     handle_template_request,
     machine_parser,
 )
-from foremanlite.vars import (
-    IPXE_DIR,
-    IPXE_PASSTHROUGH,
-    IPXE_PROVISION,
-    IPXE_START,
-)
+from foremanlite.vars import IPXE_DIR, IPXE_PASSTHROUGH, IPXE_PROVISION
 
 ns: Namespace = Namespace(
     "ipxe", description="Get iPXE files for provisioning machines"
@@ -43,21 +38,26 @@ def _construct_vars_func(
     """
     Construct variables for templates.
 
-    Adds the `chain_url` variable when rendering IPXE_START,
-    representing the next chain url for machines.
+    Adds the following variables:
+
+    * endpoint: endpoint name of the ipxe files route
+    * passfile: filename of the ipxe passthrough file, which boots
+      the machine to disk
+    * provisionfile: filename of the ipxe provision file, which
+      provisions the machine
     """
 
+    # Provision by default
     machine = kwargs["machine"]
-    resolved_fn = kwargs["resolved_fn"]
-    template_vars = {}
-    if str(resolved_fn).endswith(IPXE_START):
-        if machine.provision or machine.provision is None:
-            start_chain_target = IPXE_PROVISION
-        else:
-            start_chain_target = IPXE_PASSTHROUGH
-        template_vars["chain_url"] = url_for(
-            "ipxefiles", filename=start_chain_target, _external=True
-        )
+    if machine.provision is None:
+        machine.provision = True
+    kwargs["machine"] = machine
+
+    template_vars = {
+        "endpoint": "ipxefiles",
+        "passfile": IPXE_PASSTHROUGH.removesuffix(".j2"),
+        "provisionfile": IPXE_PROVISION.removesuffix(".j2"),
+    }
 
     template_vars.update(construct_machine_vars(**kwargs))
     return template_vars
