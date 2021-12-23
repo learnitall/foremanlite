@@ -15,8 +15,6 @@ globals().get('ctx')
 For more information, see foremanlite.serve.context and
 foremanlite.serve.app
 """
-import multiprocessing
-
 from foremanlite.serve.context import ServeContext
 
 _ctx: ServeContext = globals().get("ctx", None)
@@ -24,6 +22,6 @@ if _ctx is None:
     raise ValueError("Unable to get current application context.")
 
 bind = "0.0.0.0:80"
-workers = multiprocessing.cpu_count() * 2 + 1
+workers = 1
 accesslog = f"{_ctx.log_dir}/gunicorn.access.log"
 errorlog = f"{_ctx.log_dir}/gunicorn.error.log"
