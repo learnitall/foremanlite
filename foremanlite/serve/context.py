@@ -102,7 +102,7 @@ class ServeContext:
         groups_dir = os.path.join(config.config_dir, GROUPS_DIR)
         # https://www.sethserver.com/python/recursively-list-files.html
         queue_dir = [groups_dir]
-        is_json = lambda f: os.path.splitext(f) == ".json"
+        is_json = lambda f: str(f).endswith(".json")
 
         def on_error(err: OSError):
             logger.warning(
