@@ -176,13 +176,15 @@ def construct_machine_vars(*_, **kwargs) -> t.Dict[str, t.Any]:
     Construct list of known variables of the machine and its groups.
 
     Merges all the group's variables and the machine's attributes
-    into the same dictionary.
+    into the same dictionary. Groups will be merged by lexicographical
+    order of their name.
     """
 
     machine = kwargs["machine"]
     groups = kwargs["groups"]
     result = asdict(machine)
     result["arch"] = str(result["arch"].value)
+    groups = sorted(groups, key=lambda g: g.name)
     for group in groups:
         if group.vars is not None:
             result.update(**group.vars)
