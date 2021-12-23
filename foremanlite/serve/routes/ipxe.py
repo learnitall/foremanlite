@@ -50,7 +50,7 @@ def _construct_vars_func(
     machine = kwargs["machine"]
     resolved_fn = kwargs["resolved_fn"]
     template_vars = {}
-    if (resolved_fn).endswith(IPXE_START):
+    if str(resolved_fn).endswith(IPXE_START):
         if machine.provision or machine.provision is None:
             start_chain_target = IPXE_PROVISION
         else:
