@@ -9,6 +9,7 @@ from pathlib import Path
 from flask.wrappers import Request
 from flask_restx.inputs import boolean
 from flask_restx.reqparse import ParseResult, RequestParser
+from werkzeug.exceptions import BadRequest
 
 from foremanlite.fsdata import DataJinjaTemplate
 from foremanlite.machine import (
@@ -279,9 +280,10 @@ def handle_template_request(
 
     try:
         machine_request: Machine = parse_machine_from_request(request)
-    except (ValueError, TypeError) as err:
+    except (ValueError, TypeError, BadRequest) as err:
         logger.warning(
-            f"Unable to get machine info from request {repr_request(request)}"
+            "Unable to get machine info from request "
+            f"{repr_request(request)}: {err}"
         )
         return (f"Unable to handle request: {err}", 400)
 
