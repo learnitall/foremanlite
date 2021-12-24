@@ -43,8 +43,11 @@ class FileSystemCache:
 
     Parameters
     -----------
-    root_dir : str
+    root_dir : str or Path
         Directory to serve files out of.
+    max_file_size_bytes : int, optional
+        Set an upper limit on the size of files (in bytes) that
+        can be cached. If omitted, no restriction will be used.
 
     Raises
     ------
@@ -52,12 +55,17 @@ class FileSystemCache:
         if dir does not exist
     """
 
-    def __init__(self, root_dir: str):
+    def __init__(
+        self,
+        root_dir: t.Union[str, Path],
+        max_file_size_bytes: t.Optional[int] = None,
+    ):
         self.root: Path = Path(root_dir)
         # Filename hash: content, is dirty
         self.cache: t.Dict[SHA256, t.Tuple[bytes, bool]] = {}
         self.lock: threading.Lock = threading.Lock()
         self.logger: logging.Logger = get_logger("FileSystemCache")
+        self.max_file_size_bytes = max_file_size_bytes
         self.observer = Observer()
 
         self.logger.info(f"Caching files from '{self.root}'")
@@ -115,7 +123,8 @@ class FileSystemCache:
         str
         """
 
-        entry = self.cache.get(self.get_key(path))
+        with self.lock:
+            entry = self.cache.get(self.get_key(path))
         if entry is None:
             return None
 
@@ -125,7 +134,7 @@ class FileSystemCache:
 
         return None
 
-    def put(self, path: Path, content: t.Optional[bytes] = None):
+    def put(self, path: Path, content: t.Optional[bytes] = None) -> bool:
         """
         Add the given path and its contents to the cache.
 
@@ -138,17 +147,41 @@ class FileSystemCache:
             If not available, file will be read. This assumes the
             given content is the same as the actual file's content
             on disk.
+
+        Returns
+        -------
+        bool
+            True if file was cached successfully, otherwise False.
+            A file will not be cached successfully if its size in
+            bytes is greater than the set max limit. See the
+            `max_file_size_bytes` parameter.
         """
+
+        if self.max_file_size_bytes is not None:
+            size_bytes = (
+                path.stat().st_size if content is None else len(content)
+            )
+            if size_bytes > self.max_file_size_bytes:
+                msg = (
+                    "Got request to cache file greater than max size "
+                    f"{self.max_file_size_bytes}: {str(path)} "
+                    f"({size_bytes} bytes)"
+                )
+                self.logger.warning(msg)
+                return False
 
         if content is None:
             content = path.read_bytes()
+
         self.logger.debug(
             f"Caching {str(path)} ({str(self.compute_sha256(content))})"
         )
-        self.cache[self.get_key(path)] = (
-            content,
-            False,
-        )
+        with self.lock:
+            self.cache[self.get_key(path)] = (
+                content,
+                False,
+            )
+        return True
 
 
 class DataFile:

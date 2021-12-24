@@ -61,6 +61,18 @@ def test_filesystem_cache_can_detect_dirty_files(logfix, cachefactory):
         assert cache.get(target_file) is None
 
 
+def test_filesystem_cache_put_returns_false_when_file_is_too_big(
+    logfix, cachefactory
+):
+    """Test the filesystem cache put returns False if file is too big."""
+
+    cache: FileSystemCache
+    contentdir: Path
+    cache, contentdir = cachefactory
+    cache.max_file_size_bytes = 0
+    assert not cache.put(contentdir / list(CACHE_FILES.keys())[0])
+
+
 def test_datafile_validate_method_correctly_determines_file_can_be_read(
     logfix, contentdir
 ):
