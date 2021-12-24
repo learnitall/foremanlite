@@ -6,6 +6,7 @@ import typing as t
 from dataclasses import asdict
 from pathlib import Path
 
+from flask import make_response
 from flask.wrappers import Request
 from flask_restx.inputs import boolean
 from flask_restx.reqparse import ParseResult, RequestParser
@@ -309,7 +310,12 @@ def handle_template_request(
     )
     template = template_factory(resolved_fn)
     try:
-        return (template.render(**template_vars).decode("utf-8"), 200)
+        resp = make_response(
+            template.render(**template_vars).decode("utf-8"),
+            200,
+        )
+        resp.headers["Content-Type"] = "text/plain"
+        return resp
     except ValueError as err:
         logger.warning(
             f"Error occurred while rendering {str(resolved_fn)} "
