@@ -171,9 +171,4 @@ def start():
         logging.getLogger("gunicorn.access").addHandler(stream)
 
     context.cache.start_watchdog()
-    try:
-        ForemanliteGunicornApp(
-            app=app, config_files=configs, ctx=context
-        ).run()
-    finally:
-        context.cache.stop_watchdog()
+    ForemanliteGunicornApp(app=app, config_files=configs, ctx=context).run()
