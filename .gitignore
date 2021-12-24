@@ -141,9 +141,6 @@ cython_debug/
 .vscode/
 
 # foremanlite stuffs
-etc/foremanlite/exec/*
-!etc/foremanlite/exec/.gitkeep
-!etc/foremanlite/exec/gunicorn_conf_default.py
-!var/log
-var/log/foremanlite/*
-!var/log/foremanlite/.gitkeep
+defaults/etc/foremanlite/exec/*
+!defaults/etc/foremanlite/exec/.gitkeep
+!defaults/etc/foremanlite/exec/gunicorn_conf_default.py

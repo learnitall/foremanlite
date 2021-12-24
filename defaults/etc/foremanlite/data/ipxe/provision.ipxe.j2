@@ -1,0 +1,10 @@
+#!ipxe
+echo "Provisioning machine with mac {{ mac }} on arch {{ arch }}"
+
+{% if chain_file is defined %}
+echo "Chaining to {{ chain_file }}"
+chain --autofree {{ url_for("ipxefiles", filename=chain_file, _external=True) }}?arch=${arch}&mac=${mac:hexhyp}
+{% else %}
+echo "Booting netboot.xyz"
+chain --autofree http://boot.netboot.xyz/ipxe/netboot.xyz.lkrn
+{% endif %}

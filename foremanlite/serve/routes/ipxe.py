@@ -11,7 +11,7 @@ information on how templates are handled.
 """
 import typing as t
 
-from flask import request
+from flask import make_response, request
 from flask.templating import render_template_string
 from flask_restx import Namespace, Resource
 
@@ -23,7 +23,13 @@ from foremanlite.serve.util import (
     handle_template_request,
     machine_parser,
 )
-from foremanlite.vars import IPXE_DIR, IPXE_PASSTHROUGH, IPXE_PROVISION
+from foremanlite.vars import (
+    IPXE_BOOT,
+    IPXE_DIR,
+    IPXE_PASSTHROUGH,
+    IPXE_PROVISION,
+    IPXE_START,
+)
 
 ns: Namespace = Namespace(
     "ipxe", description="Get iPXE files for provisioning machines"
@@ -40,26 +46,29 @@ def _construct_vars_func(
 
     Adds the following variables:
 
-    * endpoint: endpoint name of the ipxe files route
     * passfile: filename of the ipxe passthrough file, which boots
       the machine to disk
     * provisionfile: filename of the ipxe provision file, which
       provisions the machine
+    * startfile: filename of the ipxe initial boot file, which
+      kicks-off pxe booting the machine by chaining the
+      appropriate ipxe file
     """
 
     # Provision by default
-    machine = kwargs["machine"]
-    if machine.provision is None:
+    machine = kwargs.get("machine", None)
+    if machine is not None and machine.provision is None:
         machine.provision = True
-    kwargs["machine"] = machine
+        kwargs["machine"] = machine
 
     template_vars = {
-        "endpoint": "ipxefiles",
         "passfile": IPXE_PASSTHROUGH.removesuffix(".j2"),
         "provisionfile": IPXE_PROVISION.removesuffix(".j2"),
+        "startfile": IPXE_START.removesuffix(".j2"),
     }
 
-    template_vars.update(construct_machine_vars(**kwargs))
+    if machine is not None and kwargs.get("groups", None) is not None:
+        template_vars.update(construct_machine_vars(**kwargs))
     return template_vars
 
 
@@ -90,3 +99,38 @@ class IPXEFiles(Resource):
             template_factory,
             _construct_vars_func,
         )
+
+
+@ns.route(f"/{IPXE_BOOT.removesuffix('.j2')}", endpoint="ipxeboot")
+class IPXEBoot(Resource):
+    """Resource representing the iPXE initial boot file."""
+
+    @staticmethod
+    def get():
+        """Render and serve the iPXE boot file."""
+
+        context = get_context()
+        ipxe_dir_path = context.data_dir / IPXE_DIR
+        resolved_fn = ipxe_dir_path / IPXE_BOOT
+        _logger.info(f"Got request for boot file ({str(resolved_fn)})")
+        template_vars = _construct_vars_func()
+        try:
+            resp = make_response(
+                DataJinjaTemplate(
+                    resolved_fn,
+                    cache=context.cache,
+                    jinja_render_func=render_template_string,
+                )
+                .render(**template_vars)
+                .decode("utf-8"),
+                200,
+            )
+            resp.headers["Content-Type"] = "text/plain"
+            return resp
+        except ValueError as err:
+            _logger.warning(
+                "Error occurred while rendering boot file "
+                f"{str(resolved_fn)} with vars {template_vars}: "
+                f"{err}"
+            )
+            raise err

@@ -21,7 +21,9 @@ EXEC_DIR = "exec"  # directory containing executables or their configs
 # These need to be configured in the data directory
 IPXE_DIR = "ipxe"
 # endpoint first hit by machines, configured in dhcp
-IPXE_START = "boot.ipxe.j2"
+IPXE_BOOT = "boot.ipxe.j2"
+# second endpoint hit to chain to appropriate endpoint
+IPXE_START = "start.ipxe.j2"
 IPXE_PROVISION = "provision.ipxe"  # endpoint hit when provisioned
 IPXE_PASSTHROUGH = "pass.ipxe"  # endpoint hit when not provisioning
 
