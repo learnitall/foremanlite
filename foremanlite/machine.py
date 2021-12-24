@@ -63,13 +63,19 @@ class Machine:
         '{"mac": "11:22:33:44", "arch": "x86_64", "name": "test", "provision": null}'
         """  # pylint: disable=line-too-long
 
-        return json.dumps(asdict(self))
+        result = asdict(self)
+        result["arch"] = str(self.arch.value)
+        result["mac"] = str(self.mac)
+        return json.dumps(result)
 
     @classmethod
     def from_json(cls, json_str: str) -> "Machine":
         """Return Machine from json-formatted string."""
 
-        return cls(**json.loads(json_str))
+        result = json.loads(json_str)
+        result["arch"] = Arch(result["arch"])
+        result["mac"] = Mac(result["mac"])
+        return cls(**result)
 
 
 def get_uuid(
@@ -131,6 +137,8 @@ class ExactMachineSelector(MachineSelector):
         attr = getattr(machine, self.attr, None)
         if attr is None:
             return False
+        if isinstance(attr, Enum):
+            attr = attr.value
 
         return attr == self.val
 
@@ -171,6 +179,8 @@ class RegexMachineSelector(MachineSelector):
         attr = getattr(machine, self.attr, None)
         if attr is None:
             return False
+        if isinstance(attr, Enum):
+            attr = attr.value
 
         return re.match(self.reg, attr) is not None
 

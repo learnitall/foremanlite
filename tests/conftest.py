@@ -16,7 +16,7 @@ TEST_MACHINES: t.Dict[str, t.Sequence] = {
         "testmachine",
     ),
     "mac": ("11:22:33:44:55:66", "de:ad:be:ef:11:22", "12:34:56:78:90:12"),
-    "arch": tuple(e.value for e in Arch),
+    "arch": tuple(e for e in Arch),
     "provision": (True, False),
 }
 
