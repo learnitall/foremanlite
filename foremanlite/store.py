@@ -81,6 +81,8 @@ class RedisMachineStore(BaseMachineStore):
             machine_list = json.loads(machines)
             machine_list.append(uuid)
             self.redis.set(self.MACHINES_KEY, json.dumps(machine_list))
+        self.logger.info(f"Added machine with uuid {uuid}")
+        self.logger.debug(f"Machine with {uuid}: {machine}")
 
     def get(self, uuid: SHA256) -> t.Optional[Machine]:
         """Return the machine with the given uuid."""
