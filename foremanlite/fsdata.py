@@ -167,7 +167,7 @@ class FileSystemCache:
                     f"{self.max_file_size_bytes}: {str(path)} "
                     f"({size_bytes} bytes)"
                 )
-                self.logger.warning(msg)
+                self.logger.debug(msg)
                 return False
 
         if content is None:
