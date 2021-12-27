@@ -7,11 +7,17 @@ FROM python:3.9-slim as builder
 ENV pbin /root/.local/bin/poetry
 
 RUN apt update && \
-    apt install curl --assume-yes
+    apt install curl git golang --assume-yes
+
 RUN curl -sSL https://install.python-poetry.org | python3 - && \
     ${pbin} config virtualenvs.in-project true
 
 WORKDIR /app
+
+RUN git clone https://github.com/coreos/butane.git .butane && \
+    cd .butane && \
+    BIN_PATH=/app/etc/foremanlite/exec ./build
+
 COPY poetry.lock pyproject.toml ./
 RUN ${pbin} install --no-dev --no-root
 
