@@ -100,6 +100,7 @@ def setup(
     formatter = logging.Formatter(FORMAT)
     level = logging.DEBUG if verbose else logging.INFO
     logger = logging.getLogger(BASENAME)
+    logger.propagate = False
     logger.setLevel(level)
 
     if use_file:
