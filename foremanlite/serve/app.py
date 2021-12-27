@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Configure variables for flask startup."""
-import logging
 import os
 import typing as t
 from pathlib import Path
@@ -11,9 +10,8 @@ from flask import Flask
 from flask_restx import Api
 
 from foremanlite.cli.config import Config
-from foremanlite.logging import FORMAT
+from foremanlite.logging import BASENAME
 from foremanlite.logging import get as get_logger
-from foremanlite.logging import get_stream_handler
 from foremanlite.serve.context import ServeContext, get_context, set_context
 from foremanlite.serve.routes import register_routes
 from foremanlite.vars import GUNICORN_CONFIG, GUNICORN_DEFAULT_CONFIG, VERSION
@@ -60,9 +58,13 @@ def setup(
         a ServeContext using `ServeContext.from_config`.
     """
 
-    app = Flask("foremanlite")
+    # This name cannot be foremanlite.logging.BASENAME
+    # Flask restx will use name below as the base
+    # logger for the app, which can conflict with our
+    # own logging setup.
+    app = Flask(BASENAME + "_app")
     api = Api(
-        title="foremanlite",
+        title=BASENAME + "_api",
         version=VERSION,
     )
     register_routes(api)
@@ -163,12 +165,6 @@ def start():
     )
 
     context = get_context()
-    if not context.config.quiet:
-        level = logging.DEBUG if context.config.verbose else logging.INFO
-        formatter = logging.Formatter(FORMAT)
-        stream = get_stream_handler(formatter, level)
-        logging.getLogger("gunicorn.error").addHandler(stream)
-        logging.getLogger("gunicorn.access").addHandler(stream)
 
     context.cache.start_watchdog()
     ForemanliteGunicornApp(app=app, config_files=configs, ctx=context).run()
