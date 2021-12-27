@@ -56,10 +56,14 @@ class ServeContext:
         )
         for name, directory in dirs:
             if not os.path.exists(directory):
-                raise ValueError(
-                    f"{name.upper()} directory does not exist, unable to "
-                    f"start: {directory}"
-                )
+                # Exception lies in the log directory
+                # If no-persist was given, don't need to check
+                # for it
+                if not (name == "log" and not config.persist_log):
+                    raise ValueError(
+                        f"{name.upper()} directory does not exist, unable to "
+                        f"start: {directory}"
+                    )
 
         logger.info(
             f"Using the following directories: config: {str(config_dir)}, "
@@ -145,7 +149,9 @@ class ServeContext:
 
         data_dir = os.path.abspath(os.path.join(config.config_dir, DATA_DIR))
         try:
-            cache = FileSystemCache(data_dir)
+            cache = FileSystemCache(
+                data_dir, max_file_size_bytes=config.max_cache_file_size
+            )
         except ValueError as err:
             logger.error(
                 "Unable to create handler for data directory "

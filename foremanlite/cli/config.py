@@ -30,6 +30,10 @@ class Config:
         "the default gunicorn config. This lets user configurations use "
         "and override variables in the gunicorn config."
     )
+    max_cache_file_size: int = 10 ** 8
+    max_cache_file_size_help: str = (
+        "Max file size that will be cached (in bytes)"
+    )
 
     def __hash__(self):
         return hash(repr(self))
