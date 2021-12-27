@@ -16,6 +16,9 @@ DATA_DIR = "data"  # directory containing files served to clients
 GROUPS_DIR = "groups"  # directory containing MachineGroup definitions
 EXEC_DIR = "exec"  # directory containing executables or their configs
 
+# --- Static ---
+STATIC_DIR = "static"  # directory containing static files served to clients
+
 # --- iPXE ---
 # File names for different actions
 # These need to be configured in the data directory
