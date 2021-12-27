@@ -57,7 +57,13 @@ def render_butane_string(
             check=True,
         )
     except subprocess.SubprocessError as err:
-        raise ValueError(f"Unable to render butane config {source}: {err}")
+        proc_out = getattr(err, "stdout", "")
+        proc_err = getattr(err, "stderr", "")
+
+        raise ValueError(
+            f"Unable to render butane config {source}: {err} {proc_out} "
+            f"{proc_err}"
+        )
     else:
         return proc.stdout.decode("utf-8")
 
