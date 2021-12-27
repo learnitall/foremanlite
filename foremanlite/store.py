@@ -117,9 +117,7 @@ class RedisMachineStore(BaseMachineStore):
 
         kwargs_set = set(kwargs.items())
         for machine in machines:
-            print(machine)
             if kwargs_set.issubset(set(asdict(machine).items())):
-                print("match")
                 result.add(machine)
 
         return result
