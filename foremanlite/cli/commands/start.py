@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """Start command group."""
 import os
+import sys
 
 import click
 
@@ -23,5 +24,11 @@ def cli(ctx):
         file_path=os.path.join(config.log_dir, LOGFILE_NAME),
         use_stream=(not config.quiet),
     )
+    if config.quiet:
+        devnull = open(  # pylint: disable=consider-using-with
+            os.devnull, "w", encoding="utf-8"
+        )
+        sys.stderr = devnull
+        sys.stdout = devnull
     setup(config=config)
     start()
