@@ -311,7 +311,7 @@ def handle_template_request(
     template = template_factory(resolved_fn)
     try:
         resp = make_response(
-            template.render(**template_vars).decode("utf-8"),
+            template.render(**template_vars),
             200,
         )
         resp.headers["Content-Type"] = "text/plain"

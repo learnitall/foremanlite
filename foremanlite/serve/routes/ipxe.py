@@ -120,9 +120,7 @@ class IPXEBoot(Resource):
                     resolved_fn,
                     cache=context.cache,
                     jinja_render_func=render_template_string,
-                )
-                .render(**template_vars)
-                .decode("utf-8"),
+                ).render(**template_vars),
                 200,
             )
             resp.headers["Content-Type"] = "text/plain"

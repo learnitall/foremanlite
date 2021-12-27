@@ -39,9 +39,7 @@ class StaticFiles(Resource):
                 DataFile(
                     requested_path,
                     cache=context.cache,
-                )
-                .read()
-                .decode("utf-8"),
+                ).read(),
                 200,
             )
             resp.headers["Content-Type"] = "text/plain"
