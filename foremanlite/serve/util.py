@@ -13,14 +13,7 @@ from flask_restx.reqparse import ParseResult, RequestParser
 from werkzeug.exceptions import BadRequest
 
 from foremanlite.fsdata import DataJinjaTemplate
-from foremanlite.machine import (
-    Arch,
-    Mac,
-    Machine,
-    MachineGroup,
-    filter_groups,
-    get_uuid,
-)
+from foremanlite.machine import Arch, Mac, Machine, MachineGroup, get_uuid
 from foremanlite.serve.context import ServeContext
 from foremanlite.store import BaseMachineStore
 
@@ -295,7 +288,7 @@ def handle_template_request(
 
     logger.info(f"Got request from machine {machine}: {str(resolved_fn)}")
 
-    groups = filter_groups(machine, context.groups)
+    groups = context.groups.filter(machine)
     if len(groups) > 0:
         logger.info(f"Found groups for {machine}: {groups}")
     else:

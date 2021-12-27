@@ -17,7 +17,7 @@ from foremanlite.machine import (
     Machine,
     MachineGroup,
     RegexMachineSelector,
-    filter_groups,
+    _filter_groups,
 )
 
 
@@ -85,6 +85,6 @@ def test_filter_groups_returns_correct_set_of_group_membership():
         ),
     }
 
-    matches = filter_groups(machine, groups)
+    matches = _filter_groups(machine, tuple(groups))
     assert len(matches) == 1
     assert matches.pop().name == "name is test"

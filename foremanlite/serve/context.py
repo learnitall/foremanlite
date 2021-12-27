@@ -12,7 +12,11 @@ import redis
 from foremanlite.cli.config import Config
 from foremanlite.fsdata import FileSystemCache
 from foremanlite.logging import get as get_logger
-from foremanlite.machine import MachineGroup
+from foremanlite.machine import (
+    DirectoryMachineGroupSetWatchdog,
+    MachineGroupSet,
+    load_groups_from_dir,
+)
 from foremanlite.store import BaseMachineStore, RedisMachineStore
 from foremanlite.vars import (
     CACHE_POLLING_INTERVAL,
@@ -20,6 +24,9 @@ from foremanlite.vars import (
     EXEC_DIR,
     GROUPS_DIR,
 )
+
+_dumb_logger = logging.getLogger("_dumb_logger")
+_dumb_logger.disabled = True
 
 
 @dataclass
@@ -38,11 +45,12 @@ class ServeContext:
     log_dir: Path
     cache: FileSystemCache
     store: t.Optional[BaseMachineStore]
-    groups: t.List[MachineGroup]
+    groups: MachineGroupSet
+    groups_watchdog: DirectoryMachineGroupSetWatchdog
 
     @staticmethod
     def get_dirs(
-        config: Config, logger: logging.Logger
+        config: Config, logger: logging.Logger = _dumb_logger
     ) -> t.Tuple[Path, Path, Path, Path, Path]:
         """Return config, data and groups directories."""
 
@@ -82,7 +90,7 @@ class ServeContext:
 
     @staticmethod
     def get_store(
-        config: Config, logger: logging.Logger
+        config: Config, logger: logging.Logger = _dumb_logger
     ) -> t.Optional[BaseMachineStore]:
         """Get instance of BaseMachineStore from the given Config."""
 
@@ -95,61 +103,37 @@ class ServeContext:
         return store
 
     @staticmethod
-    def get_groups(
-        config: Config, logger: logging.Logger
-    ) -> t.List[MachineGroup]:
-        """
-        Get list of MachineGroups using the given Config.
+    def get_group_set(
+        groups_dir: Path, logger: logging.Logger = _dumb_logger
+    ) -> MachineGroupSet:
+        """Get MachineGroupSet using the given config"""
 
-        Will recursively look in the given config's configuration
-        directory under `GROUPS_DIR` for any json files. These
-        json files will be treated as group definitions.
-        """
-
-        groups = []
-        group_files = []
-        groups_dir = os.path.join(config.config_dir, GROUPS_DIR)
-        # https://www.sethserver.com/python/recursively-list-files.html
-        queue_dir = [groups_dir]
-        is_json = lambda f: str(f).endswith(".json")
-
-        def on_error(err: OSError):
-            logger.warning(
-                f"Error occurred while looking for group files: {err}"
-            )
-
-        logger.info(f"Looking for group files in {groups_dir}")
-        while len(queue_dir) > 0:
-            for (path, dirs, files) in os.walk(
-                queue_dir.pop(), onerror=on_error
-            ):
-                queue_dir.extend(dirs)
-                files = [file for file in files if is_json(file)]
-                group_files.extend(
-                    [os.path.join(path, file) for file in files]
-                )
-
-        for group_file in group_files:
-            try:
-                with open(
-                    group_file, "r", encoding="utf-8"
-                ) as group_file_handler:
-                    groups.append(
-                        MachineGroup.from_json(group_file_handler.read())
-                    )
-            except (OSError, ValueError) as err:
-                logger.error(f"Unable to parse group file {group_file}: {err}")
-                raise err
-
-        group_names = [group.name for group in groups]
-        if len(group_names) > 0:
-            logger.info(f"Read the following groups: {', '.join(group_names)}")
-        else:
-            logger.info("No groups were found.")
-        return groups
+        groups = load_groups_from_dir(
+            groups_dir=groups_dir,
+            cache=None,
+            logger=logger,
+        )
+        return MachineGroupSet(groups=groups)
 
     @staticmethod
-    def get_cache(config: Config, logger: logging.Logger) -> FileSystemCache:
+    def get_group_watchdog(
+        groups_dir: Path,
+        groups: MachineGroupSet,
+        cache: FileSystemCache,
+    ) -> DirectoryMachineGroupSetWatchdog:
+        """Get DirectoryMachineGroupSetWatchdog using the given config"""
+
+        return DirectoryMachineGroupSetWatchdog(
+            groups_dir=groups_dir,
+            cache=cache,
+            polling_interval=CACHE_POLLING_INTERVAL,
+            machine_group_set=groups,
+        )
+
+    @staticmethod
+    def get_cache(
+        config: Config, logger: logging.Logger = _dumb_logger
+    ) -> FileSystemCache:
         """Get FileSystemCache instance from the given config."""
 
         data_dir = os.path.abspath(os.path.join(config.config_dir, DATA_DIR))
@@ -161,8 +145,9 @@ class ServeContext:
             )
         except ValueError as err:
             logger.error(
-                "Unable to create handler for data directory "
-                f"{data_dir}: {err}"
+                "Unable to create handler for data directory " "%s: %s",
+                data_dir,
+                err,
             )
             raise err
 
@@ -178,7 +163,8 @@ class ServeContext:
         )
         store = cls.get_store(config, logger)
         cache = cls.get_cache(config, logger)
-        groups = cls.get_groups(config, logger)
+        group_set = cls.get_group_set(groups_dir, logger)
+        group_watchdog = cls.get_group_watchdog(groups_dir, group_set, cache)
         return cls(
             config=config,
             config_dir=config_dir,
@@ -188,7 +174,8 @@ class ServeContext:
             log_dir=log_dir,
             cache=cache,
             store=store,
-            groups=groups,
+            groups=group_set,
+            groups_watchdog=group_watchdog,
         )
 
     def start(self):
@@ -198,11 +185,13 @@ class ServeContext:
             self.store.ping()
 
         self.cache.start_watchdog()
+        self.groups_watchdog.start()
 
     def stop(self):
         """Run one-time teardown tasks."""
 
         self.cache.stop_watchdog()
+        self.groups_watchdog.stop()
 
 
 _CONTEXT: ServeContext
