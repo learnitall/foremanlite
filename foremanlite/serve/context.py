@@ -14,7 +14,12 @@ from foremanlite.fsdata import FileSystemCache
 from foremanlite.logging import get as get_logger
 from foremanlite.machine import MachineGroup
 from foremanlite.store import BaseMachineStore, RedisMachineStore
-from foremanlite.vars import DATA_DIR, EXEC_DIR, GROUPS_DIR
+from foremanlite.vars import (
+    CACHE_POLLING_INTERVAL,
+    DATA_DIR,
+    EXEC_DIR,
+    GROUPS_DIR,
+)
 
 
 @dataclass
@@ -150,7 +155,9 @@ class ServeContext:
         data_dir = os.path.abspath(os.path.join(config.config_dir, DATA_DIR))
         try:
             cache = FileSystemCache(
-                data_dir, max_file_size_bytes=config.max_cache_file_size
+                data_dir,
+                max_file_size_bytes=config.max_cache_file_size,
+                polling_interval=CACHE_POLLING_INTERVAL,
             )
         except ValueError as err:
             logger.error(

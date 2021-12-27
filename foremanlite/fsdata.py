@@ -10,7 +10,7 @@ from pathlib import Path
 
 from jinja2 import Template
 from watchdog.events import FileModifiedEvent, FileSystemEventHandler
-from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
 
 from foremanlite.logging import get as get_logger
 
@@ -48,6 +48,9 @@ class FileSystemCache:
     max_file_size_bytes : int, optional
         Set an upper limit on the size of files (in bytes) that
         can be cached. If omitted, no restriction will be used.
+    polling_interval : float, 1.0
+        Interval in-between polling directory for changes.
+        Defaults to 1 second.
 
     Raises
     ------
@@ -59,6 +62,7 @@ class FileSystemCache:
         self,
         root_dir: t.Union[str, Path],
         max_file_size_bytes: t.Optional[int] = None,
+        polling_interval: float = 1.0,
     ):
         self.root: Path = Path(root_dir)
         # Filename hash: content, is dirty
@@ -66,7 +70,7 @@ class FileSystemCache:
         self.lock: threading.Lock = threading.Lock()
         self.logger: logging.Logger = get_logger("FileSystemCache")
         self.max_file_size_bytes = max_file_size_bytes
-        self.observer = Observer()
+        self.observer = PollingObserver(timeout=polling_interval)
 
         self.logger.info(f"Caching files from '{self.root}'")
 

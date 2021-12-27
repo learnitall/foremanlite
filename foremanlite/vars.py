@@ -38,3 +38,6 @@ BUTANE_DIR = "butane"
 # --- GUNICORN ---
 GUNICORN_DEFAULT_CONFIG = "gunicorn_conf_default.py"
 GUNICORN_CONFIG = "gunicorn_conf.py"
+
+# --- FSDATA ---
+CACHE_POLLING_INTERVAL = 1
