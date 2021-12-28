@@ -3,6 +3,8 @@
 """Describe configuration variables for runtime."""
 from dataclasses import dataclass
 
+from foremanlite.machine import Machine
+
 
 @dataclass
 class Config:
@@ -37,6 +39,18 @@ class Config:
 
     def __hash__(self):
         return hash(repr(self))
+
+
+@dataclass
+class MachineConfig(Machine):
+    """Define config variables for a Machine instance."""
+
+    mac_help: str = "Mac address of the machine"
+    arch_help: str = "Arch of the machine"
+    name_help: str = "Name of the machine"
+    provision_help: str = (
+        "Whether or not machine should be provisioned next boot."
+    )
 
 
 DEFAULT_CONFIG = Config()

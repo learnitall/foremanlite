@@ -2,33 +2,8 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=unused-argument, redefined-outer-name
 """Test functionality in formanlite.store module."""
-import os
-import subprocess
-
-from pytest_redis import factories
-
 from foremanlite.machine import SHA256, get_uuid
 from foremanlite.store import RedisMachineStore
-
-
-def get_redis_exec():
-    """
-    Find path to redis-server on the system using `which`.
-
-    Can override with env var REDIS_EXEC.
-    """
-
-    return os.environ.get(
-        "REDIS_EXEC",
-        subprocess.run(
-            ["which", "redis-server"], capture_output=True, check=True
-        ).stdout.decode("utf-8"),
-    ).strip()
-
-
-REDIS_EXEC = get_redis_exec()
-my_redis_proc = factories.redis_proc(executable=REDIS_EXEC)
-my_redisdb = factories.redisdb("my_redis_proc")
 
 
 def test_redis_machine_store_does_not_fail_with_empty_db(

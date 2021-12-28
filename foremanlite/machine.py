@@ -16,11 +16,10 @@ from pathlib import Path
 from watchdog.events import FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 
-from foremanlite.fsdata import DataFile, FileSystemCache
+from foremanlite.fsdata import SHA256, DataFile, FileSystemCache
 from foremanlite.logging import get as get_logger
 
 Mac = t.NewType("Mac", str)
-SHA256 = t.NewType("SHA256", str)
 
 
 class Arch(Enum):
@@ -62,9 +61,11 @@ class Machine:
     def __hash__(self):
         return hash(repr(self))
 
-    def to_json(self) -> str:
+    def to_json(self, **kwargs) -> str:
         """
         Return json-formatting string of Machine instance.
+
+        Any kwargs passed will be given to `json.dumps`.
 
         Examples
         --------
@@ -77,7 +78,7 @@ class Machine:
         result = asdict(self)
         result["arch"] = str(self.arch.value)
         result["mac"] = str(self.mac)
-        return json.dumps(result)
+        return json.dumps(result, **kwargs)
 
     @classmethod
     def from_json(cls, json_str: str) -> "Machine":
@@ -128,8 +129,12 @@ class MachineSelector(ABC):
         """Return if the given machine matches the selector."""
 
     @abstractmethod
-    def to_json(self) -> str:
-        """Return json representation of the selector."""
+    def to_json(self, **kwargs) -> str:
+        """
+        Return json representation of the selector.
+
+        Any kwargs passed will be given to `json.dumps`.
+        """
 
 
 class ExactMachineSelector(MachineSelector):
@@ -157,9 +162,9 @@ class ExactMachineSelector(MachineSelector):
 
         return attr == self.val
 
-    def to_json(self) -> str:
+    def to_json(self, **kwargs) -> str:
         return json.dumps(
-            {"type": "exact", "val": self.val, "attr": self.attr}
+            {"type": "exact", "val": self.val, "attr": self.attr}, **kwargs
         )
 
 
@@ -204,9 +209,9 @@ class RegexMachineSelector(MachineSelector):
 
         return re.match(self.reg, attr) is not None
 
-    def to_json(self) -> str:
+    def to_json(self, **kwargs) -> str:
         return json.dumps(
-            {"type": "regex", "val": self.reg, "attr": self.attr}
+            {"type": "regex", "val": self.reg, "attr": self.attr}, **kwargs
         )
 
 
@@ -281,18 +286,20 @@ class MachineGroup:
 
         return count
 
-    def to_json(self) -> str:
+    def to_json(self, **kwargs) -> str:
         """Return json representation of the MachineGroup."""
 
-        result = {
-            "name": self.name,
-            "vars": json.dumps(self.vars),
-        }
         selectors = []
         for selector in self.selectors:
-            selectors.append(selector.to_json())
-        result["selectors"] = json.dumps(selectors)
-        return json.dumps(result)
+            selectors.append(json.loads(selector.to_json()))
+        return json.dumps(
+            {
+                "name": self.name,
+                "vars": self.vars,
+                "selectors": selectors,
+            },
+            **kwargs,
+        )
 
     @classmethod
     def from_json(cls, json_str: str) -> "MachineGroup":
@@ -482,10 +489,16 @@ class MachineGroupSet:
         self.groups = groups
         self.lock = threading.Lock()
 
-    def to_json(self) -> str:
-        """Return json representation of the MachineGroupSet"""
+    def to_json(self, **kwargs) -> str:
+        """
+        Return json representation of the MachineGroupSet
 
-        return json.dumps([group.to_json() for group in self.groups])
+        Any kwargs given will be passed to `json.dumps`.
+        """
+
+        return json.dumps(
+            [json.loads(group.to_json()) for group in self.groups], **kwargs
+        )
 
     def all(self) -> t.Set[MachineGroup]:
         """Return the set of all groups in the MachineGroupSet"""
