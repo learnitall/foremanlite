@@ -23,6 +23,17 @@ class BaseMachineStore(ABC):
         """Get machine from the store with the given uuid."""
 
     @abstractmethod
+    def delete(self, uuid: SHA256) -> None:
+        """
+        Delete the machine with the given uuid.
+
+        Raises
+        ------
+        ValueError
+            if a machine with the given uuid does not exist.
+        """
+
+    @abstractmethod
     def find(self, **kwargs) -> t.Set[Machine]:
         """
         Get machine(s) from the store from the given attributes.
@@ -91,6 +102,33 @@ class RedisMachineStore(BaseMachineStore):
         if result is not None:
             return Machine.from_json(result)
         return None
+
+    def delete(self, uuid: SHA256) -> None:
+        """
+        Delete the machine with the given uuid.
+
+        Raises
+        ------
+        ValueError
+            if a machine with the given uuid does not exist.
+        """
+
+        result: t.Optional[str] = self.redis.get(uuid)
+        if result is None:
+            raise ValueError(f"Machine with uuid {uuid} does not exist.")
+        self.redis.delete(uuid)
+        machines = self.redis.get(self.MACHINES_KEY)
+        if machines is None:
+            # something weird is going on here
+            # should never get here, just silently return
+            return
+        machines_list: t.List[SHA256] = json.loads(machines)
+        try:
+            machines_list.remove(uuid)
+        except ValueError:
+            # again shouldn't get here so
+            # just silently return
+            return
 
     def all(self) -> t.Set[Machine]:
         """Return set of all machines in the redis store."""

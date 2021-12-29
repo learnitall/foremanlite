@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=unused-argument, redefined-outer-name
 """Test functionality in formanlite.store module."""
+import pytest
+
 from foremanlite.machine import SHA256, get_uuid
 from foremanlite.store import RedisMachineStore
 
@@ -32,6 +34,29 @@ def test_redis_machine_store_can_put_and_get(
 
     assert my_redisdb.get(store.MACHINES_KEY) is not None
     assert store.get(get_uuid(machine=machine)) == machine
+
+
+def test_redis_machine_store_can_delete(logfix, my_redisdb, machine_factory):
+    """Test the RedisMachineStore can delete a machine from the store."""
+
+    store = RedisMachineStore(redis_conn=my_redisdb)
+    machine = machine_factory()
+    uuid = get_uuid(machine=machine)
+    store.put(machine)
+    assert store.get(uuid) == machine
+    store.delete(uuid)
+    assert store.get(uuid) is None
+
+
+def test_redis_machine_store_raises_value_on_deleting_missing_machine(
+    logfix, my_redisdb, machine_factory
+):
+    """Test RedisMachineStore raises ValueError deleting missing machine."""
+
+    store = RedisMachineStore(redis_conn=my_redisdb)
+    machine = machine_factory()
+    with pytest.raises(ValueError):
+        store.delete(get_uuid(machine=machine))
 
 
 def test_redis_machine_store_can_find_machines_by_attr(
