@@ -35,6 +35,9 @@ BUTANE_VERSION = "v0.13.1"
 BUTANE_EXEC = "butane"  # relative to EXEC_DIR
 BUTANE_DIR = "butane"
 
+# --- IGNITION ---
+IGNITION_DIR_PATH = "ignition"
+
 # --- GUNICORN ---
 GUNICORN_DEFAULT_CONFIG = "gunicorn_conf_default.py"
 GUNICORN_CONFIG = "gunicorn_conf.py"
