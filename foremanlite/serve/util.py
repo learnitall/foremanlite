@@ -3,7 +3,6 @@
 """General utilities for helping to serve foremanlite requests."""
 import logging
 import typing as t
-from dataclasses import asdict
 from pathlib import Path
 
 from flask import make_response
@@ -175,11 +174,12 @@ def construct_machine_vars(*_, **kwargs) -> t.Dict[str, t.Any]:
     order of their name.
     """
 
-    machine = kwargs["machine"]
-    groups = kwargs["groups"]
-    result = asdict(machine)
+    machine: Machine = kwargs["machine"]
+    result = machine.dict()
     result["arch"] = str(result["arch"].value)
-    groups = sorted(groups, key=lambda g: g.name)
+    groups: t.List[MachineGroup] = sorted(
+        kwargs["groups"], key=lambda g: g.name
+    )
     for group in groups:
         if group.vars is not None:
             result.update(**group.vars)
@@ -208,8 +208,8 @@ def merge_with_store(
         machine = machine_request
         store.put(machine)
     elif hash(result) != hash(machine_request):
-        merged = asdict(result)
-        merged.update(asdict(machine_request))
+        merged = result.dict()
+        merged.update(machine_request.dict())
         merged_machine = Machine(**merged)
         store.put(merged_machine)
         machine = merged_machine

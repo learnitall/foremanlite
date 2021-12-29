@@ -12,24 +12,25 @@ import pytest
 
 from foremanlite.machine import (
     Arch,
-    ExactMachineSelector,
     Mac,
     Machine,
     MachineGroup,
-    RegexMachineSelector,
+    MachineSelector,
     _filter_groups,
 )
 
 
 def test_exact_machine_selector_matches_attributes_exactly():
-    """Test ExactMachineSelector matches Machines by exact attributes."""
+    """Test xxact MachineSelector matches Machines by exact attributes."""
 
     machine = Machine(
         name="test", mac=Mac("11:22:33:44:55:66"), arch=Arch.aarch64
     )
-    selector = ExactMachineSelector(attr="mac", val="11:22:33:44:55:66")
+    selector = MachineSelector(
+        type="exact", attr="mac", val="11:22:33:44:55:66"
+    )
     assert selector.matches(machine)
-    selector = ExactMachineSelector(attr="name", val="test2")
+    selector = MachineSelector(type="exact", attr="name", val="test2")
     assert not selector.matches(machine)
 
 
@@ -39,9 +40,9 @@ def test_regex_machine_selector_matches_attributes_with_regex_str():
     machine = Machine(
         name="test", mac=Mac("11:22:33:44:55:66"), arch=Arch.aarch64
     )
-    selector = RegexMachineSelector(attr="mac", val="^11:22:.*$")
+    selector = MachineSelector(type="regex", attr="mac", val="^11:22:.*$")
     assert selector.matches(machine)
-    selector = RegexMachineSelector(attr="name", val="est")
+    selector = MachineSelector(type="regex", attr="name", val="est")
     assert not selector.matches(machine)
 
 
@@ -53,7 +54,7 @@ def test_machine_group_from_json_can_parse_json_into_machine_group_instance():
         "selectors": [{"type": "exact", "val": "mymachine", "attr": "name"}],
         "vars": {"yougood?": True},
     }
-    group = MachineGroup.from_json(json.dumps(config))
+    group = MachineGroup.parse_raw(json.dumps(config))
     machine = Machine(name="mymachine", mac=Mac(""), arch=Arch.aarch64)
     assert group.filter([machine]) == 1
     assert list(group.machines)[0].name == "mymachine"
@@ -65,7 +66,7 @@ def test_machine_group_from_json_raises_value_error_on_parse_error():
 
     bad_config = {"name": "test"}  # missing selectors
     with pytest.raises(ValueError):
-        MachineGroup.from_json(json.dumps(bad_config))
+        MachineGroup.parse_raw(json.dumps(bad_config))
 
 
 def test_filter_groups_returns_correct_set_of_group_membership():
@@ -76,12 +77,12 @@ def test_filter_groups_returns_correct_set_of_group_membership():
     )
     groups = {
         MachineGroup(
-            "name is test",
-            selectors=[ExactMachineSelector(attr="name", val="test")],
+            name="name is test",
+            selectors=[MachineSelector(type="exact", attr="name", val="test")],
         ),
         MachineGroup(
-            "name is tset",
-            selectors=[ExactMachineSelector(attr="name", val="tset")],
+            name="name is tset",
+            selectors=[MachineSelector(type="exact", attr="name", val="tset")],
         ),
     }
 

@@ -2,17 +2,17 @@
 """Representation of machine information."""
 import functools
 import hashlib
-import json
 import logging
 import os
 import re
 import threading
 import typing as t
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
 
+import orjson
+from pydantic import BaseModel
 from watchdog.events import FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 
@@ -29,8 +29,29 @@ class Arch(Enum):
     aarch64 = "aarch64"  # pylint: disable=invalid-name
 
 
-@dataclass
-class Machine:
+def _orjson_dumps(value, *_, default):
+    """Wrap orjson.dumps to decode to str."""
+
+    return orjson.dumps(value, default=default).decode()
+
+
+class _MachineStuffsBaseModelConfig:
+    """Default Config for MachineStuffs BaseModels"""
+
+    json_loads = orjson.loads
+    json_dumps = _orjson_dumps
+
+
+class _MachineStuffsBaseModel(BaseModel):
+    """Pydantic BaseModel for all MachineStuffs that need serialization"""
+
+    class Config(_MachineStuffsBaseModelConfig):
+        """Define pydantic configuration by subclassing base model config."""
+
+        ...
+
+
+class Machine(_MachineStuffsBaseModel):
     """
     Represent information about a pxe-booted machine.
 
@@ -60,34 +81,6 @@ class Machine:
 
     def __hash__(self):
         return hash(repr(self))
-
-    def to_json(self, **kwargs) -> str:
-        """
-        Return json-formatting string of Machine instance.
-
-        Any kwargs passed will be given to `json.dumps`.
-
-        Examples
-        --------
-        >>> from foremanlite.machine import Machine
-        >>> m = Machine(name="test", mac="11:22:33:44", arch="x86_64")
-        >>> m.to_json()
-        '{"mac": "11:22:33:44", "arch": "x86_64", "name": "test", "provision": null}'
-        """  # pylint: disable=line-too-long
-
-        result = asdict(self)
-        result["arch"] = str(self.arch.value)
-        result["mac"] = str(self.mac)
-        return json.dumps(result, **kwargs)
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "Machine":
-        """Return Machine from json-formatted string."""
-
-        result = json.loads(json_str)
-        result["arch"] = Arch(result["arch"])
-        result["mac"] = Mac(result["mac"])
-        return cls(**result)
 
 
 def get_uuid(
@@ -121,39 +114,34 @@ def get_uuid(
     )
 
 
-class MachineSelector(ABC):
-    """Base Machine Selector class."""
+class MachineSelectorType(Enum):
+    """Define different 'modes' for the MachineSelector class."""
 
-    @abstractmethod
-    def matches(self, machine: Machine) -> bool:
-        """Return if the given machine matches the selector."""
-
-    @abstractmethod
-    def to_json(self, **kwargs) -> str:
-        """
-        Return json representation of the selector.
-
-        Any kwargs passed will be given to `json.dumps`.
-        """
+    regex = "regex"  # pylint: disable=invalid-name
+    exact = "exact"  # pylint: disable=invalid-name
 
 
-class ExactMachineSelector(MachineSelector):
+class MachineSelector(ABC, _MachineStuffsBaseModel):
     """
-    ExactMachineSelector matches machines based on expected attribute values.
+    Machine Selector matches machines based on attribute values.
 
     Parameters
     ----------
+    type : str
+        One of the MachineSelectorTypes.
     attr : str
         Attribute of Machine to match val against.
     val : str
         Value to match against.
     """
 
-    def __init__(self, attr: str, val: str):
-        self.val: str = val
-        self.attr: str = attr
+    type: MachineSelectorType
+    attr: str
+    val: str
 
-    def matches(self, machine: Machine) -> bool:
+    def _exact_matches(self, machine: Machine) -> bool:
+        """Determine if the machine has the exact expected value."""
+
         attr = getattr(machine, self.attr, None)
         if attr is None:
             return False
@@ -162,44 +150,8 @@ class ExactMachineSelector(MachineSelector):
 
         return attr == self.val
 
-    def to_json(self, **kwargs) -> str:
-        return json.dumps(
-            {"type": "exact", "val": self.val, "attr": self.attr}, **kwargs
-        )
-
-
-class RegexMachineSelector(MachineSelector):
-    """
-    RegexMachineSelector matches Machines based on regex strings.
-
-    Match must be exact (i.e. from beginning of string).
-    Regex search will not be performed.
-
-    Parameters
-    ----------
-    attr : str
-        Attribute of Machine to match regex string against.
-    val : str
-        Regex string to match against.
-    """
-
-    def __init__(self, attr: str, val: str):
-        self.reg: str = val
-        self.attr: str = attr
-
-    def matches(self, machine: Machine) -> bool:
-        """
-        Determine if this selector matches the given matchine.
-
-        Parameters
-        ----------
-        machine : Machine
-            Machine to determine if selection matches
-
-        Returns
-        -------
-        bool
-        """
+    def _regex_matches(self, machine: Machine) -> bool:
+        """Determine if machine has attr which matches set regex string."""
 
         attr = getattr(machine, self.attr, None)
         if attr is None:
@@ -207,15 +159,29 @@ class RegexMachineSelector(MachineSelector):
         if isinstance(attr, Enum):
             attr = attr.value
 
-        return re.match(self.reg, attr) is not None
+        return re.match(self.val, attr) is not None
 
-    def to_json(self, **kwargs) -> str:
-        return json.dumps(
-            {"type": "regex", "val": self.reg, "attr": self.attr}, **kwargs
-        )
+    def matches(self, machine: Machine) -> bool:
+        """
+        Return if the given machine matches the selector.
+
+        Raises
+        ------
+        ValueError
+            if an invalid MachineSelectorType was given.
+        """
+
+        match_method = getattr(self, f"_{str(self.type.value)}_matches", None)
+        if match_method is None:
+            raise ValueError(
+                f"Invalid match type given {self.type} "
+                "(expected one of "
+                f"{', '.join([m.value for m in MachineSelectorType])})"
+            )
+        return match_method(machine)
 
 
-class MachineGroup:
+class MachineGroup(_MachineStuffsBaseModel):
     """
     Representation of a group of machines.
 
@@ -230,25 +196,17 @@ class MachineGroup:
         Name representing this machine group
     selectors : list of MachineSelector
         MachineSelectors that describe this group.
-    group_vars : dict
+    vars : dict
         Variables to associate with this group.
     """
 
-    SELECTORS = {
-        "exact": ExactMachineSelector,
-        "regex": RegexMachineSelector,
-    }
+    name: str
+    selectors: t.List[MachineSelector]
+    vars: t.Optional[t.Dict[str, t.Any]] = None
+    machines: t.List[Machine] = []
 
-    def __init__(
-        self,
-        name: str,
-        selectors: t.Iterable[MachineSelector],
-        group_vars: t.Optional[t.Dict[str, t.Any]] = None,
-    ):
-        self.name = name
-        self.selectors = selectors
-        self.machines: t.Set[Machine] = set()
-        self.vars = group_vars
+    def __hash__(self):
+        return hash(repr(self))
 
     def matches(self, machine: Machine) -> bool:
         """Return if the given machine belongs to this group."""
@@ -281,100 +239,10 @@ class MachineGroup:
         count = 0
         for machine in machines:
             if self.matches(machine):
-                self.machines.add(machine)
+                self.machines.append(machine)
                 count += 1
 
         return count
-
-    def to_json(self, **kwargs) -> str:
-        """Return json representation of the MachineGroup."""
-
-        selectors = []
-        for selector in self.selectors:
-            selectors.append(json.loads(selector.to_json()))
-        return json.dumps(
-            {
-                "name": self.name,
-                "vars": self.vars,
-                "selectors": selectors,
-            },
-            **kwargs,
-        )
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "MachineGroup":
-        """
-        Parse a MachineGroup from the given json string.
-
-        Expected format:
-
-        ```
-        {
-            "name": name,
-            "selectors": [
-                {
-                    "type": type,
-                    "attr": attr,
-                    "val": val
-                },
-                ...
-            ],
-            "vars": {
-                var1: value1,
-                ...
-            }
-        }
-        ```
-
-        Parameters
-        ----------
-        json : str
-            json to parse into a MachineGroup instance.
-
-        Raises
-        ------
-        ValueError
-            if the config could not be parsed correctly
-        """
-
-        config = json.loads(json_str)
-        name, selectors = config.get("name", None), config.get(
-            "selectors", None
-        )
-
-        if name is None or selectors is None:
-            raise ValueError(
-                "Expected name and selectors keys, one of them is missing."
-            )
-
-        selector_instances = []
-        for selector in selectors:
-            sel_type = selector.get("type", None)
-            if sel_type is None:
-                raise ValueError(
-                    "Expected type attribute in selector but it is missing: "
-                    f"{selector}"
-                )
-
-            sel_cls = cls.SELECTORS.get(sel_type.lower(), None)
-            if sel_cls is None:
-                raise ValueError(
-                    f"Could not find selector with name {sel_type}"
-                )
-
-            del selector["type"]
-            try:
-                selector_instances.append(sel_cls(**selector))
-            except Exception as err:
-                raise ValueError(
-                    f"Unable to create selector {sel_type}: {err}"
-                )
-
-        return cls(
-            name=name,
-            selectors=selector_instances,
-            group_vars=config.get("vars", None),
-        )
 
 
 @functools.cache
@@ -409,7 +277,7 @@ def load_groups_from_dir(
     groups_dir: Path,
     cache: t.Optional[FileSystemCache] = None,
     logger: t.Optional[logging.Logger] = None,
-) -> t.Set[MachineGroup]:
+) -> t.List[MachineGroup]:
     """
     Load a set of groups from files in the given directory (recursive).
 
@@ -461,15 +329,42 @@ def load_groups_from_dir(
                 DataFile(Path(group_file), cache=cache).read().decode("utf-8")
             )
 
-            groups.append(MachineGroup.from_json(content))
+            groups.append(MachineGroup.parse_raw(content))
         except (OSError, ValueError) as err:
             logger.error("Unable to parse group file %s: %s", group_file, err)
             raise err
 
-    return set(groups)
+    return groups
 
 
-class MachineGroupSet:
+class _MachineGroupSetLockRegistry:
+    """
+    Registry for locks on a MachineGroupSet.
+
+    Each unique MachineGroupSet instance gets its own
+    `threading.Lock` instance in the registry. Instances
+    are identified using the `id` function.
+
+    Using a registry like this will keep the MachineGroupSet
+    pickleable, as it doesn't have to store its own locks as
+    an instance attribute.
+    """
+
+    registry: t.Dict[int, threading.Lock] = {}
+
+    @classmethod
+    def lock(cls, machine_group_set: "MachineGroupSet"):
+        """Return threading.Lock instance for given MachineGroupSet."""
+        set_id = id(machine_group_set)
+        result = cls.registry.get(set_id, None)
+        if result is None:
+            new_lock = threading.Lock()
+            cls.registry[set_id] = new_lock
+            result = new_lock
+        return result
+
+
+class MachineGroupSet(_MachineStuffsBaseModel):
     """
     Manage a set of MachineGroups.
 
@@ -485,25 +380,12 @@ class MachineGroupSet:
         Set of MachineGroup instances to manage.
     """
 
-    def __init__(self, groups: t.Set[MachineGroup]):
-        self.groups = groups
-        self.lock = threading.Lock()
+    groups: t.List[MachineGroup]
 
-    def to_json(self, **kwargs) -> str:
-        """
-        Return json representation of the MachineGroupSet
-
-        Any kwargs given will be passed to `json.dumps`.
-        """
-
-        return json.dumps(
-            [json.loads(group.to_json()) for group in self.groups], **kwargs
-        )
-
-    def all(self) -> t.Set[MachineGroup]:
+    def all(self) -> t.List[MachineGroup]:
         """Return the set of all groups in the MachineGroupSet"""
 
-        with self.lock:
+        with _MachineGroupSetLockRegistry.lock(self):
             return self.groups
 
     def filter(self, machine: Machine) -> t.Set[MachineGroup]:
@@ -525,7 +407,7 @@ class MachineGroupSet:
 
         # need to cast to tuple since that is hashable and _filter_groups
         # is wrapped with functools.cache
-        with self.lock:
+        with _MachineGroupSetLockRegistry.lock(self):
             return _filter_groups(machine, tuple(self.groups))
 
 
@@ -604,7 +486,7 @@ class DirectoryMachineGroupSetWatchdog(MachineGroupSetWatchdog):
         new_groups = load_groups_from_dir(
             self.groups_dir, self.cache, self.logger
         )
-        with self.machine_group_set.lock:
+        with _MachineGroupSetLockRegistry.lock(self.machine_group_set):
             self.machine_group_set.groups = new_groups
 
     def start(self):

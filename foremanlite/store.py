@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """Options for storing and retrieving information about a machine."""
-import json
 import typing as t
 from abc import ABC, abstractmethod
-from dataclasses import asdict
 
+import orjson
 import redis
 
 from foremanlite.logging import get as get_logger
@@ -84,14 +83,16 @@ class RedisMachineStore(BaseMachineStore):
         """Store the given machine."""
 
         uuid = get_uuid(machine=machine)
-        self.redis.set(uuid, machine.to_json())
+        self.redis.set(uuid, machine.json())
         machines = self.redis.get(self.MACHINES_KEY)
         if machines is None:
             self.redis.set(self.MACHINES_KEY, f'["{uuid}"]')
         else:
-            machine_list = json.loads(machines)
+            machine_list = orjson.loads(machines)
             machine_list.append(uuid)
-            self.redis.set(self.MACHINES_KEY, json.dumps(machine_list))
+            self.redis.set(
+                self.MACHINES_KEY, orjson.dumps(machine_list).decode("utf-8")
+            )
         self.logger.info(f"Added machine with uuid {uuid}")
         self.logger.debug(f"Machine with {uuid}: {machine}")
 
@@ -100,7 +101,7 @@ class RedisMachineStore(BaseMachineStore):
 
         result: t.Optional[str] = self.redis.get(uuid)
         if result is not None:
-            return Machine.from_json(result)
+            return Machine.parse_raw(result)
         return None
 
     def delete(self, uuid: SHA256) -> None:
@@ -122,7 +123,7 @@ class RedisMachineStore(BaseMachineStore):
             # something weird is going on here
             # should never get here, just silently return
             return
-        machines_list: t.List[SHA256] = json.loads(machines)
+        machines_list: t.List[SHA256] = orjson.loads(machines)
         try:
             machines_list.remove(uuid)
         except ValueError:
@@ -137,12 +138,12 @@ class RedisMachineStore(BaseMachineStore):
         machines = self.redis.get(self.MACHINES_KEY)
         if machines is None:
             return result
-        uuid_list = json.loads(machines)
+        uuid_list = orjson.loads(machines)
         for machine_uuid in uuid_list:
             machine_json = self.redis.get(machine_uuid)
             if machine_json is None:
                 continue
-            result.add(Machine.from_json(machine_json))
+            result.add(Machine.parse_raw(machine_json))
         return result
 
     def find(self, **kwargs) -> t.Set[Machine]:
@@ -155,7 +156,7 @@ class RedisMachineStore(BaseMachineStore):
 
         kwargs_set = set(kwargs.items())
         for machine in machines:
-            if kwargs_set.issubset(set(asdict(machine).items())):
+            if kwargs_set.issubset(set(machine.dict().items())):
                 result.add(machine)
 
         return result

@@ -51,6 +51,7 @@ repos:
           - types-redis
           - types-requests
           - types-setuptools
+          - types-orjson
         args:
         - --ignore-missing-imports
         - --no-strict-optional

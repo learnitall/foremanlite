@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Version command group"""
+import json
 import logging
 
 import click
+import orjson
 
 from foremanlite.cli.config import Config
 from foremanlite.logging import get as get_logger
@@ -23,9 +25,7 @@ def print_groups(config: Config):
 
     group_dir = ServeContext.get_dirs(config, logger=logger)[2]
     machine_group_set = ServeContext.get_group_set(group_dir, logger=logger)
-    click.echo(
-        machine_group_set.to_json(indent=4),
-    )
+    click.echo(json.dumps(orjson.loads(machine_group_set.json()), indent=4))
 
 
 @click.command()
