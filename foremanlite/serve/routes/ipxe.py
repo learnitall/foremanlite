@@ -9,23 +9,22 @@ be treated as a jinja template. See
 `foremanlite.serve.util.render_machine_template` for
 information on how templates are handled.
 """
-from flask import request, url_for
+import typing as t
+
+from flask import make_response, request
 from flask.templating import render_template_string
 from flask_restx import Namespace, Resource
 
 from foremanlite.fsdata import DataJinjaTemplate
 from foremanlite.logging import get as get_logger
-from foremanlite.machine import Machine, filter_groups
 from foremanlite.serve.context import get_context
 from foremanlite.serve.util import (
-    construct_vars,
+    construct_machine_vars,
+    handle_template_request,
     machine_parser,
-    parse_machine_from_request,
-    repr_request,
-    resolve_filename,
 )
-from foremanlite.store import has_machine
 from foremanlite.vars import (
+    IPXE_BOOT,
     IPXE_DIR,
     IPXE_PASSTHROUGH,
     IPXE_PROVISION,
@@ -38,6 +37,41 @@ ns: Namespace = Namespace(
 _logger = get_logger("ipxe")
 
 
+def _construct_vars_func(
+    *_,
+    **kwargs,
+) -> t.Dict[str, t.Any]:
+    """
+    Construct variables for templates.
+
+    Adds the following variables:
+
+    * passfile: filename of the ipxe passthrough file, which boots
+      the machine to disk
+    * provisionfile: filename of the ipxe provision file, which
+      provisions the machine
+    * startfile: filename of the ipxe initial boot file, which
+      kicks-off pxe booting the machine by chaining the
+      appropriate ipxe file
+    """
+
+    # Provision by default
+    machine = kwargs.get("machine", None)
+    if machine is not None and machine.provision is None:
+        machine.provision = True
+        kwargs["machine"] = machine
+
+    template_vars = {
+        "passfile": IPXE_PASSTHROUGH.removesuffix(".j2"),
+        "provisionfile": IPXE_PROVISION.removesuffix(".j2"),
+        "startfile": IPXE_START.removesuffix(".j2"),
+    }
+
+    if machine is not None and kwargs.get("groups", None) is not None:
+        template_vars.update(construct_machine_vars(**kwargs))
+    return template_vars
+
+
 @ns.route("/<string:filename>", endpoint="ipxefiles")
 @ns.param("filename", "Filename of iPXE file to retrieve")
 @ns.doc(parser=machine_parser)
@@ -48,64 +82,53 @@ class IPXEFiles(Resource):
     def get(filename: str):
         """Get the requested iPXE file."""
 
-        endpoint = "ipxe.ipxefiles"  # constant for convenience
         context = get_context()
         ipxe_dir_path = context.data_dir / IPXE_DIR
-        resolved_fn = resolve_filename(filename, ipxe_dir_path)
-        if resolved_fn is None:
-            return ("Requested iPXE file not found", 404)
+        template_factory = lambda path: DataJinjaTemplate(
+            path,
+            cache=context.cache,
+            jinja_render_func=render_template_string,
+        )
 
-        # Now we need to determine what machine is making the
-        # request, so we can determine if needs to be provisioned
-        # or any variables that are needed to do the render
+        return handle_template_request(
+            context,
+            _logger,
+            request,
+            filename,
+            ipxe_dir_path,
+            template_factory,
+            _construct_vars_func,
+        )
+
+
+@ns.route(f"/{IPXE_BOOT.removesuffix('.j2')}", endpoint="ipxeboot")
+class IPXEBoot(Resource):
+    """Resource representing the iPXE initial boot file."""
+
+    @staticmethod
+    def get():
+        """Render and serve the iPXE boot file."""
+
+        context = get_context()
+        ipxe_dir_path = context.data_dir / IPXE_DIR
+        resolved_fn = ipxe_dir_path / IPXE_BOOT
+        _logger.info(f"Got request for boot file ({str(resolved_fn)})")
+        template_vars = _construct_vars_func()
         try:
-            machine_request: Machine = parse_machine_from_request(request)
-        except (ValueError, TypeError) as err:
-            _logger.warning(
-                "Unable to get machine info from request: "
-                f"{repr_request(request)}"
+            resp = make_response(
+                DataJinjaTemplate(
+                    resolved_fn,
+                    cache=context.cache,
+                    jinja_render_func=render_template_string,
+                ).render(**template_vars),
+                200,
             )
-            return (f"Unable to handle request: {err}", 400)
-
-        # by default, always provision a machine
-        if machine_request.provision is None:
-            machine_request.provision = True
-
-        # check if the requested machine is known
-        if context.store is not None:
-            result = has_machine(context.store, machine_request)
-            if result is None:
-                machine = machine_request
-                context.store.put(machine)
-            else:
-                machine = result
-        else:
-            machine = machine_request
-
-        groups = filter_groups(machine, context.groups)
-
-        # Determine chain target url
-        extra_vars = {}
-        if resolved_fn == ipxe_dir_path / IPXE_START:
-            if machine.provision:
-                chain_target = IPXE_PROVISION
-            else:
-                chain_target = IPXE_PASSTHROUGH
-            extra_vars["chain_url"] = url_for(endpoint, filename=chain_target)
-
-        template_vars = construct_vars(machine, groups)
-        template_vars.update(extra_vars)
-
-        try:
-            content = DataJinjaTemplate(
-                resolved_fn,
-                cache=context.cache,
-                jinja_render_func=render_template_string,
-            )
-            return (content.render(**template_vars), 200)
+            resp.headers["Content-Type"] = "text/plain"
+            return resp
         except ValueError as err:
             _logger.warning(
-                f"Error occurred while rendering {str(resolved_fn)} "
-                f"with vars {template_vars}: {err}"
+                "Error occurred while rendering boot file "
+                f"{str(resolved_fn)} with vars {template_vars}: "
+                f"{err}"
             )
             raise err

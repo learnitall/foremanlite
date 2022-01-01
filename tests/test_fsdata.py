@@ -28,8 +28,9 @@ def contentdir(tmpdir):
 def cachefactory(contentdir):
     """Create and teardown a FileSystemCache instance."""
 
-    cache = FileSystemCache(contentdir)
+    cache = FileSystemCache(contentdir, polling_interval=1)
     cache.start_watchdog()
+    time.sleep(0.2)  # give watchdog a second to snapshot the directory
     yield cache, contentdir
     cache.stop_watchdog()
 
@@ -57,8 +58,23 @@ def test_filesystem_cache_can_detect_dirty_files(logfix, cachefactory):
         target_file = contentdir / filename
         cache.put(target_file)
         target_file.write_text(filename[::-1])
-        time.sleep(0.1)  # make sure watchdog has time to catch up
-        assert cache.get(target_file) is None
+        waited_time = 0
+        while cache.get(target_file) is not None:
+            time.sleep(0.1)
+            waited_time += 0.1
+            assert waited_time < 1
+
+
+def test_filesystem_cache_put_returns_false_when_file_is_too_big(
+    logfix, cachefactory
+):
+    """Test the filesystem cache put returns False if file is too big."""
+
+    cache: FileSystemCache
+    contentdir: Path
+    cache, contentdir = cachefactory
+    cache.max_file_size_bytes = 0
+    assert not cache.put(contentdir / list(CACHE_FILES.keys())[0])
 
 
 def test_datafile_validate_method_correctly_determines_file_can_be_read(

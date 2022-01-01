@@ -2,32 +2,10 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=unused-argument, redefined-outer-name
 """Test functionality in formanlite.store module."""
-import os
-import subprocess
+import pytest
 
-from pytest_redis import factories
-
+from foremanlite.machine import SHA256, get_uuid
 from foremanlite.store import RedisMachineStore
-
-
-def get_redis_exec():
-    """
-    Find path to redis-server on the system using `which`.
-
-    Can override with env var REDIS_EXEC.
-    """
-
-    return os.environ.get(
-        "REDIS_EXEC",
-        subprocess.run(
-            ["which", "redis-server"], capture_output=True, check=True
-        ).stdout.decode("utf-8"),
-    ).strip()
-
-
-REDIS_EXEC = get_redis_exec()
-my_redis_proc = factories.redis_proc(executable=REDIS_EXEC)
-my_redisdb = factories.redisdb("my_redis_proc")
 
 
 def test_redis_machine_store_does_not_fail_with_empty_db(
@@ -38,7 +16,8 @@ def test_redis_machine_store_does_not_fail_with_empty_db(
     assert my_redisdb.get(RedisMachineStore.MACHINES_KEY) is None
 
     store = RedisMachineStore(redis_conn=my_redisdb)
-    store.get(name="not there")
+    store.get(SHA256("1"))
+    store.find(name="not there")
 
     machine = machine_factory()
     store.put(machine)
@@ -54,21 +33,48 @@ def test_redis_machine_store_can_put_and_get(
     store.put(machine)
 
     assert my_redisdb.get(store.MACHINES_KEY) is not None
-    assert store.get(name=machine.name) == {machine}
+    assert store.get(get_uuid(machine=machine)) == machine
 
 
-def test_redis_machine_store_can_get_machines_by_attr(
+def test_redis_machine_store_can_delete(logfix, my_redisdb, machine_factory):
+    """Test the RedisMachineStore can delete a machine from the store."""
+
+    store = RedisMachineStore(redis_conn=my_redisdb)
+    machine = machine_factory()
+    uuid = get_uuid(machine=machine)
+    store.put(machine)
+    assert store.get(uuid) == machine
+    store.delete(uuid)
+    assert store.get(uuid) is None
+
+
+def test_redis_machine_store_raises_value_on_deleting_missing_machine(
     logfix, my_redisdb, machine_factory
 ):
-    """Test the RedisMachineStore can get machines by matching attrs."""
+    """Test RedisMachineStore raises ValueError deleting missing machine."""
+
+    store = RedisMachineStore(redis_conn=my_redisdb)
+    machine = machine_factory()
+    with pytest.raises(ValueError):
+        store.delete(get_uuid(machine=machine))
+
+
+def test_redis_machine_store_can_find_machines_by_attr(
+    logfix, my_redisdb, machine_factory
+):
+    """Test the RedisMachineStore can find machines by matching attrs."""
 
     store = RedisMachineStore(redis_conn=my_redisdb)
     machines = [machine_factory(provision=True) for _ in range(5)]
+    uuids = {get_uuid(machine=machine) for machine in machines}
     for machine in machines:
         store.put(machine)
 
-    assert store.get(provision=True) == set(machines)
-    assert store.get(provision=False) == set()
+    assert (
+        set(map(lambda m: get_uuid(machine=m), store.find(provision=True)))
+        == uuids
+    )
+    assert store.find(provision=False) == set()
 
 
 def test_redis_machine_store_can_list_all_machines(
@@ -82,7 +88,14 @@ def test_redis_machine_store_can_list_all_machines(
     machine_all = []
     machine_all.extend(machine_pt)
     machine_all.extend(machine_pf)
+
+    # find collisions on uuids
+    machine_all_dict = {}
+    for machine in machine_all:
+        machine_all_dict[get_uuid(machine=machine)] = machine
+    machine_all = list(machine_all_dict.values())
+
     tuple(map(store.put, machine_all))
 
     assert store.all() == set(machine_all)
-    assert store.get(provision=True).issubset(set(machine_all))
+    assert store.find(provision=True).issubset(set(machine_all))

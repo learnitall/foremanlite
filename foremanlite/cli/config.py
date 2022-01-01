@@ -3,6 +3,8 @@
 """Describe configuration variables for runtime."""
 from dataclasses import dataclass
 
+from foremanlite.machine import Machine
+
 
 @dataclass
 class Config:
@@ -22,9 +24,33 @@ class Config:
     redis_help: str = "Use redis to handle tracking machine state."
     redis_url: str = "redis://localhost:6379"
     redis_url_help: str = "Connection URI to Redis server."
+    output_gunicorn_logs: bool = True
+    output_gunicorn_logs_help: str = "Print gunicorn logs to the screen"
+    gunicorn_layer_default: bool = True
+    gunicorn_layer_default_help: str = (
+        "Layer gunicorn config on top of "
+        "the default gunicorn config. This lets user configurations use "
+        "and override variables in the gunicorn config."
+    )
+    max_cache_file_size: int = 10 ** 8
+    max_cache_file_size_help: str = (
+        "Max file size that will be cached (in bytes)"
+    )
 
     def __hash__(self):
         return hash(repr(self))
+
+
+@dataclass
+class MachineConfig(Machine):
+    """Define config variables for a Machine instance."""
+
+    mac_help: str = "Mac address of the machine"
+    arch_help: str = "Arch of the machine"
+    name_help: str = "Name of the machine"
+    provision_help: str = (
+        "Whether or not machine should be provisioned next boot."
+    )
 
 
 DEFAULT_CONFIG = Config()

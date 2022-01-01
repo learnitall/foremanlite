@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 """Start command group."""
 import os
+import sys
 
 import click
 
 from foremanlite.cli.cli import Config
 from foremanlite.logging import setup as setup_logging
-from foremanlite.serve.app import start as start_app
+from foremanlite.serve.app import setup, start
 from foremanlite.vars import LOGFILE_NAME
 
 
@@ -23,4 +24,11 @@ def cli(ctx):
         file_path=os.path.join(config.log_dir, LOGFILE_NAME),
         use_stream=(not config.quiet),
     )
-    start_app(config=config, flask_logging=False)
+    if config.quiet:
+        devnull = open(  # pylint: disable=consider-using-with
+            os.devnull, "w", encoding="utf-8"
+        )
+        sys.stderr = devnull
+        sys.stdout = devnull
+    setup(config=config)
+    start()

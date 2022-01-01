@@ -10,6 +10,7 @@ from foremanlite.fsdata import (
     FileSystemCache,
     JinjaRenderFuncCallable,
 )
+from foremanlite.logging import get as get_logger
 
 
 class ButaneRenderFuncCallable(t.Protocol):
@@ -56,7 +57,13 @@ def render_butane_string(
             check=True,
         )
     except subprocess.SubprocessError as err:
-        raise ValueError(f"Unable to render butane config {source}: {err}")
+        proc_out = getattr(err, "stdout", "")
+        proc_err = getattr(err, "stderr", "")
+
+        raise ValueError(
+            f"Unable to render butane config {source}: {err} {proc_out} "
+            f"{proc_err}"
+        )
     else:
         return proc.stdout.decode("utf-8")
 
@@ -122,6 +129,10 @@ class DataButaneFile(DataJinjaTemplate):
         """
 
         content: str = super().render(**context).decode("utf-8")
+        get_logger("DataButaneFile").debug(
+            f"Rendering {str(self.path)} with butane exec "
+            f"{str(self.butane_exec)}"
+        )
         return self.butane_render_func(content, str(self.butane_exec)).encode(
             "utf-8"
         )

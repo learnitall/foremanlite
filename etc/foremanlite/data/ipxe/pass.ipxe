@@ -1,0 +1,3 @@
+#!ipxe
+echo "Booting from local disks..."
+exit 0
