@@ -114,7 +114,7 @@ def print_machines(config: Config, **kwargs):
                 machine.name,
                 machine.mac,
                 machine.arch.value,
-                "Yes" if machine.provision else "No",
+                str(machine.provision),
                 group_names,
                 group_vars_str,
             ]
