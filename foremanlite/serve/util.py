@@ -188,7 +188,9 @@ def construct_machine_vars(*_, **kwargs) -> t.Dict[str, t.Any]:
 
 
 def merge_with_store(
-    store: BaseMachineStore, machine_request: Machine
+    store: BaseMachineStore,
+    machine_request: Machine,
+    known_machine: t.Optional[Machine] = None,
 ) -> Machine:
     """
     Check if given machine is in the store.
@@ -201,20 +203,25 @@ def merge_with_store(
     If the machine in the store has a different hash than the given machine,
     then update the machine in the store with the values of the given
     machine and return the result.
+
+    If it is already known that the given machine is in the store, and
+    just a merge is needed, then it can be provided under the 'known_machine'
+    attribute.
     """
 
-    result = store.get(get_uuid(machine=machine_request))
-    if result is None:
+    if known_machine is None:
+        known_machine = store.get(get_uuid(machine=machine_request))
+    if known_machine is None:
         machine = machine_request
         store.put(machine)
-    elif hash(result) != hash(machine_request):
-        merged = result.dict()
+    elif hash(known_machine) != hash(machine_request):
+        merged = known_machine.dict()
         merged.update(machine_request.dict())
         merged_machine = Machine(**merged)
         store.put(merged_machine)
         machine = merged_machine
     else:
-        machine = result
+        machine = known_machine
 
     return machine
 
