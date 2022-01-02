@@ -120,15 +120,21 @@ class RedisMachineStore(BaseMachineStore):
         self.redis.delete(uuid)
         machines = self.redis.get(self.MACHINES_KEY)
         if machines is None:
-            # something weird is going on here
-            # should never get here, just silently return
+            self.logger.warning(
+                "Got request to delete machine, but seems the main list of "
+                "machines is not set, which might mean some (incomplete) "
+                "manual work was done to the database or there's a bug."
+            )
             return
         machines_list: t.List[SHA256] = orjson.loads(machines)
         try:
             machines_list.remove(uuid)
         except ValueError:
-            # again shouldn't get here so
-            # just silently return
+            self.logger.warning(
+                "Got request to delete machine, which isn't in the main list "
+                "of known machines. Something bad seems to have happened "
+                "to the database."
+            )
             return
 
     def all(self) -> t.Set[Machine]:

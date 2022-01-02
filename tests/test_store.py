@@ -2,10 +2,17 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=unused-argument, redefined-outer-name
 """Test functionality in formanlite.store module."""
-import pytest
+import typing as t
 
-from foremanlite.machine import SHA256, get_uuid
+import pytest
+from hypothesis import given
+from hypothesis import strategies as st
+from redis import Redis
+
+from foremanlite.machine import SHA256, Machine, get_uuid
 from foremanlite.store import RedisMachineStore
+
+from .conftest import machine_strategy
 
 
 def test_redis_machine_store_does_not_fail_with_empty_db(
@@ -23,24 +30,26 @@ def test_redis_machine_store_does_not_fail_with_empty_db(
     store.put(machine)
 
 
+@given(machine=machine_strategy())
 def test_redis_machine_store_can_put_and_get(
-    logfix, my_redisdb, machine_factory
+    machine: Machine, logfix, my_redisdb: Redis
 ):
     """Test the RedisMachineStore can put and get on a new db."""
 
     store = RedisMachineStore(redis_conn=my_redisdb)
-    machine = machine_factory()
     store.put(machine)
 
     assert my_redisdb.get(store.MACHINES_KEY) is not None
     assert store.get(get_uuid(machine=machine)) == machine
 
 
-def test_redis_machine_store_can_delete(logfix, my_redisdb, machine_factory):
+@given(machine=machine_strategy())
+def test_redis_machine_store_can_delete(
+    machine: Machine, logfix, my_redisdb: Redis
+):
     """Test the RedisMachineStore can delete a machine from the store."""
 
     store = RedisMachineStore(redis_conn=my_redisdb)
-    machine = machine_factory()
     uuid = get_uuid(machine=machine)
     store.put(machine)
     assert store.get(uuid) == machine
@@ -48,54 +57,71 @@ def test_redis_machine_store_can_delete(logfix, my_redisdb, machine_factory):
     assert store.get(uuid) is None
 
 
+@given(machine=machine_strategy())
 def test_redis_machine_store_raises_value_on_deleting_missing_machine(
-    logfix, my_redisdb, machine_factory
+    machine: Machine, logfix, my_redisdb: Redis
 ):
     """Test RedisMachineStore raises ValueError deleting missing machine."""
 
     store = RedisMachineStore(redis_conn=my_redisdb)
-    machine = machine_factory()
     with pytest.raises(ValueError):
         store.delete(get_uuid(machine=machine))
 
 
+@given(
+    machines=st.lists(
+        machine_strategy(),
+        unique_by=lambda machine: get_uuid(machine=machine),
+    )
+)
 def test_redis_machine_store_can_find_machines_by_attr(
-    logfix, my_redisdb, machine_factory
+    machines: t.List[Machine], logfix, my_redisdb: Redis
 ):
     """Test the RedisMachineStore can find machines by matching attrs."""
 
+    # my_redisdb is function scoped, so need to reset at end of test
+    # in order to use hypothesis
+    my_redisdb.flushall(asynchronous=False)
     store = RedisMachineStore(redis_conn=my_redisdb)
-    machines = [machine_factory(provision=True) for _ in range(5)]
-    uuids = {get_uuid(machine=machine) for machine in machines}
+    results: t.Dict[str, t.Dict[t.Any, t.Set[Machine]]] = {}
     for machine in machines:
         store.put(machine)
+        for attr, value in machine.dict().items():
+            attrs: t.Optional[t.Dict[t.Any, t.Set[Machine]]] = results.get(
+                attr, None
+            )
+            if attrs is None:
+                attrs = {}
+                results[attr] = attrs
+            machine_results: t.Optional[t.Set[Machine]] = attrs.get(
+                value, None
+            )
+            if machine_results is None:
+                machine_results = set()
+            machine_results.add(machine)
+            results[attr][value] = machine_results
 
-    assert (
-        set(map(lambda m: get_uuid(machine=m), store.find(provision=True)))
-        == uuids
+    for attr, values in results.items():
+        for value, machine_results in values.items():
+            assert store.find(**{attr: value}) == machine_results
+
+
+@given(
+    machines=st.lists(
+        machine_strategy(),
+        unique_by=lambda machine: get_uuid(machine=machine),
     )
-    assert store.find(provision=False) == set()
-
-
+)
 def test_redis_machine_store_can_list_all_machines(
-    logfix, my_redisdb, machine_factory
+    machines: t.List[Machine], logfix, my_redisdb: Redis
 ):
     """Test the RedisMachineStore can return all machines in the store."""
 
+    # my_redisdb is function scoped, so need to reset at end of test
+    # in order to use hypothesis
+    my_redisdb.flushall()
     store = RedisMachineStore(redis_conn=my_redisdb)
-    machine_pt = [machine_factory(provision=True) for _ in range(5)]
-    machine_pf = [machine_factory(provision=False) for _ in range(5)]
-    machine_all = []
-    machine_all.extend(machine_pt)
-    machine_all.extend(machine_pf)
+    for machine in machines:
+        store.put(machine)
 
-    # find collisions on uuids
-    machine_all_dict = {}
-    for machine in machine_all:
-        machine_all_dict[get_uuid(machine=machine)] = machine
-    machine_all = list(machine_all_dict.values())
-
-    tuple(map(store.put, machine_all))
-
-    assert store.all() == set(machine_all)
-    assert store.find(provision=True).issubset(set(machine_all))
+    assert store.all() == set(machines)

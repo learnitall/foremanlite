@@ -10,7 +10,7 @@ import re
 import typing as t
 
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
@@ -199,7 +199,6 @@ class TestSelectorMatchStr:
         bool_vals=st.lists(st.booleans(), min_size=4, max_size=4),
         machines=two_unique_machines_strategy(),
     )
-    @settings(suppress_health_check=(HealthCheck.function_scoped_fixture,))
     def test_test_method_can_substitute_in_names_and_eval_exp(
         bool_vals: t.List[bool],
         machines: t.Tuple[Machine, Machine],

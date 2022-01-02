@@ -19,7 +19,12 @@ from foremanlite.machine import SHA256, Arch, Machine, get_uuid
 # health check, (generating machines is really expensive), so
 # let's disable it by default.
 settings.register_profile(
-    "suppress_too_slow", suppress_health_check=(HealthCheck.too_slow,)
+    "suppress_too_slow",
+    suppress_health_check=(
+        HealthCheck.too_slow,
+        HealthCheck.function_scoped_fixture,
+    ),
+    deadline=None,
 )
 settings.load_profile("suppress_too_slow")
 
