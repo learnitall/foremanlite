@@ -4,15 +4,15 @@ import functools
 import hashlib
 import logging
 import os
-import re
 import threading
 import typing as t
 from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
 
+import jinja2
 import orjson
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from watchdog.events import FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 
@@ -29,7 +29,7 @@ class Arch(Enum):
     aarch64 = "aarch64"  # pylint: disable=invalid-name
 
 
-def _orjson_dumps(value, *_, default):
+def _orjson_dumps(value, *_, default) -> str:
     """Wrap orjson.dumps to decode to str."""
 
     return orjson.dumps(value, default=default).decode()
@@ -38,8 +38,13 @@ def _orjson_dumps(value, *_, default):
 class _MachineStuffsBaseModelConfig:
     """Default Config for MachineStuffs BaseModels"""
 
+    # these folks are much more efficient then built in json module
+    # see https://pydantic-docs.helpmanual.io/usage/exporting_models/
+    # #custom-json-deserialisation
     json_loads = orjson.loads
     json_dumps = _orjson_dumps
+    # for wrapping methods with functools.cache
+    arbitrary_types_allowed = True
 
 
 class _MachineStuffsBaseModel(BaseModel):
@@ -133,33 +138,60 @@ class MachineSelector(ABC, _MachineStuffsBaseModel):
         Attribute of Machine to match val against.
     val : str
         Value to match against.
+    name : str, optional
+        Name of the selector. See SelectorMatchStr.
     """
 
     type: MachineSelectorType
     attr: str
-    val: str
+    val: t.Union[None, bool, Arch, t.Pattern, Mac, str]
+    name: t.Optional[str] = None
+
+    class Config(_MachineStuffsBaseModelConfig):
+        """
+        pydantic configuration
+
+        We set smart_union to help with determining type
+        of val.
+        """
+
+        smart_union = True
+
+    @validator("val")
+    def pattern_given_when_type_is_regex(
+        cls, value, values, **kwargs
+    ):  # pylint: disable=no-self-argument,no-self-use,unused-argument
+        """Assert Pattern type is given when using regex selector."""
+
+        if values["type"] == MachineSelectorType.regex and not isinstance(
+            value, t.Pattern
+        ):
+            raise ValueError("need pattern for val if using regex selector")
+        return value
 
     def _exact_matches(self, machine: Machine) -> bool:
         """Determine if the machine has the exact expected value."""
 
         attr = getattr(machine, self.attr, None)
-        if attr is None:
-            return False
-        if isinstance(attr, Enum):
-            attr = attr.value
-
         return attr == self.val
 
     def _regex_matches(self, machine: Machine) -> bool:
         """Determine if machine has attr which matches set regex string."""
 
+        # pydantic should make this block inaccessible, but just
+        # to be safe and to help our static checkers out
+        if not isinstance(self.val, t.Pattern):
+            raise ValueError(
+                "Expected val to be regex Pattern type, instead "
+                f"got {type(self.val)}"
+            )
+
         attr = getattr(machine, self.attr, None)
-        if attr is None:
-            return False
         if isinstance(attr, Enum):
             attr = attr.value
+        attr = str(attr)
 
-        return re.match(self.val, attr) is not None
+        return self.val.match(attr) is not None
 
     def matches(self, machine: Machine) -> bool:
         """
@@ -181,14 +213,99 @@ class MachineSelector(ABC, _MachineStuffsBaseModel):
         return match_method(machine)
 
 
+class SelectorMatchStr(_MachineStuffsBaseModel):
+    """
+    Define boolean expression to determine how selectors are combined.
+
+    Format is really simple, just a jinja2 template. Available
+    variables will be the name of each selector as
+    a boolean variable, whose value will be substituted with
+    True/False depending on whether the given machine matches the
+    respective selector.
+
+    Your template must render to either `True` or `False`, otherwise
+    a `ValueError` is raised.
+
+    Parameters
+    ----------
+    exp : str
+        Boolean expression defining how selectors are combined.
+    """
+
+    exp: str
+
+    def test(self, selector_values: t.Dict[str, bool]) -> bool:
+        """
+        Test the expression against the given selector values.
+
+        Parameters
+        ----------
+        selector_values : dict mapping str to bool
+            Dict defining values to use for each expected selector.
+
+        Raises
+        ------
+        ValueError
+            If the template resolved to a value other than `True` or `False`
+        """
+
+        result = (
+            jinja2.Template(self.exp).render(**selector_values).lower().strip()
+        )
+        if result.lower() == "true":
+            return True
+        if result.lower() == "false":
+            return False
+        raise ValueError(
+            "Unexpected template output, expected 'True' or 'False': "
+            f"{repr(result)}"
+        )
+
+    def apply(
+        self, machine: Machine, selectors: t.List[MachineSelector]
+    ) -> bool:
+        """
+        Apply the match string onto the given machine.
+
+        Parameters
+        ----------
+        machine : Machine
+            machine to apply the expression to.
+        selectors : list of MachineSelector
+            selectors to substitute into the set expression
+
+        Raises
+        ------
+        ValueError
+            If one of the given selectors does not have a name set.
+        """
+
+        namespace: t.Dict[str, bool] = {}
+        for selector in selectors:
+            if selector.name is None:
+                raise ValueError(
+                    f"Given selector {selector.dict()} has no name, "
+                    "unable to continue"
+                )
+            namespace[selector.name] = selector.matches(machine)
+
+        return self.test(namespace)
+
+
 class MachineGroup(_MachineStuffsBaseModel):
     """
     Representation of a group of machines.
 
     Uses Selectors to match machines to the group.
 
-    Only one of the given selectors needs to match a Machine
-    for it to be considered in this group.
+    By default a Machine will match to a group if
+    one of the given selectors matches the Machine
+    (i.e. everything is 'or-ed' together). To change this,
+    one can provide a `SelectorMatchStr` to define how
+    the selectors should be combined.
+
+    Any selector which does not have a name set will
+    be 'or-ed' onto the result of the `SelectorMatchStr`.
 
     Parameters
     ----------
@@ -198,26 +315,56 @@ class MachineGroup(_MachineStuffsBaseModel):
         MachineSelectors that describe this group.
     vars : dict
         Variables to associate with this group.
+    match_str : SelectorMatchStr, optional
+        Match string used to determine how selectors
+        are combined to match onto a machine.
     """
 
     name: str
     selectors: t.List[MachineSelector]
     vars: t.Optional[t.Dict[str, t.Any]] = None
-    machines: t.List[Machine] = []
+    match_str: t.Optional[SelectorMatchStr] = None
 
     def __hash__(self):
         return hash(repr(self))
 
-    def matches(self, machine: Machine) -> bool:
-        """Return if the given machine belongs to this group."""
-
-        for selector in self.selectors:
-            if selector.matches(machine):
-                return True
+    @staticmethod
+    @functools.cache
+    def _matches(group: "MachineGroup", machine: Machine) -> bool:
+        if group.match_str is None:
+            for selector in group.selectors:
+                if selector.matches(machine):
+                    return True
+        else:
+            named = []
+            for selector in group.selectors:
+                if selector.name is None and selector.matches(machine):
+                    return True
+                named.append(selector)
+            return group.match_str.apply(machine, named)
 
         return False
 
-    def filter(self, machines: t.Iterable[Machine]) -> int:
+    def matches(self, machine: Machine) -> bool:
+        """Return if the given machine belongs to this group."""
+
+        return self._matches(self, machine)
+
+    @staticmethod
+    @functools.cache
+    def _filter(
+        group: "MachineGroup",
+        machines: t.Tuple[Machine],  # must to tuple to stay hashable
+    ) -> t.List[Machine]:
+
+        matches = []
+        for machine in machines:
+            if group.matches(machine):
+                matches.append(machine)
+
+        return matches
+
+    def filter(self, machines: t.Iterable[Machine]) -> t.List[Machine]:
         """
         Filter the given iterable of Machines.
 
@@ -231,46 +378,12 @@ class MachineGroup(_MachineStuffsBaseModel):
 
         Returns
         -------
-        int
-            Number of machines from the given iterable that were matched
+        list of machine
+            List of machines from the given iterable that were matched
             into the group.
         """
 
-        count = 0
-        for machine in machines:
-            if self.matches(machine):
-                self.machines.append(machine)
-                count += 1
-
-        return count
-
-
-@functools.cache
-def _filter_groups(
-    machine: Machine, groups: t.Iterable[MachineGroup]
-) -> t.Set[MachineGroup]:
-    """
-    Return the set of all groups the given machine belongs to.
-
-    Parameters
-    ----------
-    machine : Machine
-        Machine to find group membership of.
-    groups : iterable of MachineGroup
-        Iterable of MachineGroups to sort through.
-
-    Returns
-    -------
-    set of MachineGroup
-        Set of all the MachineGroups that the given Machine belongs to.
-    """
-
-    result = set()
-    for group in groups:
-        if group.matches(machine):
-            result.add(group)
-
-    return result
+        return self._filter(self, tuple(machines))
 
 
 def load_groups_from_dir(
@@ -382,13 +495,32 @@ class MachineGroupSet(_MachineStuffsBaseModel):
 
     groups: t.List[MachineGroup]
 
+    def __hash__(self):
+        return hash(repr(self))
+
     def all(self) -> t.List[MachineGroup]:
         """Return the set of all groups in the MachineGroupSet"""
 
         with _MachineGroupSetLockRegistry.lock(self):
             return self.groups
 
-    def filter(self, machine: Machine) -> t.Set[MachineGroup]:
+    @staticmethod
+    @functools.cache
+    def _filter(
+        group_set: "MachineGroupSet", machine: Machine
+    ) -> t.List[MachineGroup]:
+
+        # need to cast to tuple since that is hashable and _filter_groups
+        # is wrapped with functools.cache
+        with _MachineGroupSetLockRegistry.lock(group_set):
+            result = []
+            for group in group_set.groups:
+                if group.matches(machine):
+                    result.append(group)
+
+            return result
+
+    def filter(self, machine: Machine) -> t.List[MachineGroup]:
         """
         Return the set of all groups the given machine belongs to.
 
@@ -401,14 +533,11 @@ class MachineGroupSet(_MachineStuffsBaseModel):
 
         Returns
         -------
-        set of MachineGroup
-            Set of all the MachineGroups that the given Machine belongs to.
+        list of MachineGroup
+            List of all the MachineGroups that the given Machine belongs to.
         """
 
-        # need to cast to tuple since that is hashable and _filter_groups
-        # is wrapped with functools.cache
-        with _MachineGroupSetLockRegistry.lock(self):
-            return _filter_groups(machine, tuple(self.groups))
+        return self._filter(self, machine)
 
 
 class MachineGroupSetWatchdog(ABC):

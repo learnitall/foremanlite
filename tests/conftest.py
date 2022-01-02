@@ -3,14 +3,55 @@
 """Store shared fixtures for foremanlite tests."""
 import os
 import random
+import re
 import subprocess
 import typing as t
 
 import pytest
+from hypothesis import HealthCheck, assume, settings
+from hypothesis import strategies as st
 from pytest_redis import factories
 
 import foremanlite.logging
 from foremanlite.machine import SHA256, Arch, Machine, get_uuid
+
+# Sometimes when running tests on a laptop can run into this
+# health check, (generating machines is really expensive), so
+# let's disable it by default.
+settings.register_profile(
+    "suppress_too_slow", suppress_health_check=(HealthCheck.too_slow,)
+)
+settings.load_profile("suppress_too_slow")
+
+
+@st.composite
+def machine_strategy(draw):
+    """Hypothesis strategy to generate Machine instances."""
+
+    mac = st.from_regex(
+        re.compile(r"([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}"), fullmatch=True
+    )
+    arch = st.sampled_from(Arch)
+    name = st.one_of(st.none(), st.text())
+    provision = st.one_of(st.none(), st.booleans())
+
+    machine = draw(
+        st.builds(Machine, mac=mac, arch=arch, name=name, provision=provision)
+    )
+
+    return machine
+
+
+@st.composite
+def two_unique_machines_strategy(draw):
+    """Hypothesis strategy to generate two unique Machine instances."""
+
+    machine_one = draw(machine_strategy())
+    machine_two = draw(machine_strategy())
+    for key in machine_one.dict():
+        assume(getattr(machine_one, key) != getattr(machine_two, key))
+    return machine_one, machine_two
+
 
 TEST_MACHINES: t.Dict[str, t.Sequence] = {
     "name": (

@@ -17,6 +17,7 @@ redis = "^4.0.2"
 beautifultable = "^1.0.1"
 pydantic = "^1.8.2"
 orjson = "^3.6.5"
+hypothesis = "^6.34.1"
 
 [tool.poetry.dev-dependencies]
 tox = "^3.24.4"
