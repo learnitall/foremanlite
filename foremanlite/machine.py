@@ -35,6 +35,14 @@ def _orjson_dumps(value, *_, default) -> str:
     return orjson.dumps(value, default=default).decode()
 
 
+def _validate_str_not_empty(value: str):
+    """Pydantic validator to ensure a string is not empty."""
+
+    if isinstance(value, str) and len(value) == 0:
+        raise ValueError("String must contain at least one character.")
+    return value
+
+
 class _MachineStuffsBaseModelConfig:
     """Default Config for MachineStuffs BaseModels"""
 
@@ -54,6 +62,14 @@ class _MachineStuffsBaseModel(BaseModel):
         """Define pydantic configuration by subclassing base model config."""
 
         ...
+
+    @validator("name", check_fields=False)
+    def validate_name_not_empty(
+        cls, value: str
+    ):  # pylint: disable=no-self-argument,no-self-use
+        """Validate name attribute is not an empty string."""
+
+        return _validate_str_not_empty(value)
 
 
 class Machine(_MachineStuffsBaseModel):
@@ -168,6 +184,14 @@ class MachineSelector(ABC, _MachineStuffsBaseModel):
         ):
             raise ValueError("need pattern for val if using regex selector")
         return value
+
+    @validator("attr", "val")
+    def is_not_empty_string(
+        cls, value: str
+    ):  # pylint: disable=no-self-argument,no-self-use
+        """Assert given attr is not an empty string."""
+
+        return _validate_str_not_empty(value)
 
     def _exact_matches(self, machine: Machine) -> bool:
         """Determine if the machine has the exact expected value."""
@@ -313,20 +337,32 @@ class MachineGroup(_MachineStuffsBaseModel):
         Name representing this machine group
     selectors : list of MachineSelector
         MachineSelectors that describe this group.
-    vars : dict
+    vars : dict, optional
         Variables to associate with this group.
     match_str : SelectorMatchStr, optional
         Match string used to determine how selectors
         are combined to match onto a machine.
     """
 
-    name: str
     selectors: t.List[MachineSelector]
+    name: str
     vars: t.Optional[t.Dict[str, t.Any]] = None
     match_str: t.Optional[SelectorMatchStr] = None
 
     def __hash__(self):
         return hash(repr(self))
+
+    @validator("vars")
+    def validate_var_names_are_not_empty_strings(
+        cls, value: t.Optional[t.Dict[str, t.Any]]
+    ):  # pylint: disable=no-self-argument,no-self-use
+        """Assert given vars does not contain empty strings as keys."""
+
+        if value is not None and any(len(key) == 0 for key in value):
+            raise ValueError(
+                "All keys in given vars must be non-empty strings."
+            )
+        return value
 
     @staticmethod
     @functools.cache
@@ -367,9 +403,6 @@ class MachineGroup(_MachineStuffsBaseModel):
     def filter(self, machines: t.Iterable[Machine]) -> t.List[Machine]:
         """
         Filter the given iterable of Machines.
-
-        Add the Machines which belong to this group into the 'machines'
-        attribute.
 
         Parameters
         ----------
@@ -441,7 +474,6 @@ def load_groups_from_dir(
             content = (
                 DataFile(Path(group_file), cache=cache).read().decode("utf-8")
             )
-
             groups.append(MachineGroup.parse_raw(content))
         except (OSError, ValueError) as err:
             logger.error("Unable to parse group file %s: %s", group_file, err)
@@ -528,8 +560,6 @@ class MachineGroupSet(_MachineStuffsBaseModel):
         ----------
         machine : Machine
             Machine to find group membership of.
-        groups : iterable of MachineGroup
-            Iterable of MachineGroups to sort through.
 
         Returns
         -------
