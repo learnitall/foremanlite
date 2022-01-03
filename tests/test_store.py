@@ -21,18 +21,19 @@ class TestRedisMachineStore:
     """Test functionality of foremanlite.store.RedisMachineStore"""
 
     @staticmethod
+    @given(machine=machine_strategy())
     def test_redis_machine_store_does_not_fail_with_empty_db(
-        my_redisdb, machine_factory
+        machine: Machine, my_redisdb
     ):
         """Test RedisMachineStore can handle working with an empty database."""
 
+        my_redisdb.flushall()
         assert my_redisdb.get(RedisMachineStore.MACHINES_KEY) is None
 
         store = RedisMachineStore(redis_conn=my_redisdb)
         store.get(SHA256("1"))
         store.find(name="not there")
 
-        machine = machine_factory()
         store.put(machine)
 
     @staticmethod
