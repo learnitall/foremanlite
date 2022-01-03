@@ -160,7 +160,7 @@ class TemplateVarsRenderCallable(t.Protocol):
         resolved_fn: Path,
         request: Request,
         machine: Machine,
-        groups: t.Set[MachineGroup],
+        groups: t.List[MachineGroup],
     ) -> t.Dict[str, t.Any]:
         ...
 
@@ -172,6 +172,8 @@ def construct_machine_vars(*_, **kwargs) -> t.Dict[str, t.Any]:
     Merges all the group's variables and the machine's attributes
     into the same dictionary. Groups will be merged by lexicographical
     order of their name.
+
+    Works with the `TemplateVarsRenderCallable`
     """
 
     machine: Machine = kwargs["machine"]
