@@ -111,10 +111,10 @@ def print_machines(config: Config, **kwargs):
         )
         table.rows.append(
             [
-                machine.name,
-                machine.mac,
-                machine.arch.value,
-                str(machine.provision),
+                repr(machine.name),
+                repr(machine.mac),
+                repr(machine.arch.value),
+                repr(machine.provision),
                 group_names,
                 group_vars_str,
             ]
