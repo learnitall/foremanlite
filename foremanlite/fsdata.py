@@ -9,7 +9,7 @@ import typing as t
 from pathlib import Path
 
 from jinja2 import Template
-from watchdog.events import FileModifiedEvent, FileSystemEventHandler
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 
 from foremanlite.logging import get as get_logger
@@ -24,16 +24,31 @@ class _FSEventHandler(FileSystemEventHandler):
         super().__init__()
         self.cache = cache
 
-    def on_modified(self, event: FileModifiedEvent):
-        """Callback for modified event."""
+    def on_any_event(self, event: FileSystemEvent):
+        """
+        Check if the given path is dirty and mark it as so in the cache.
+
+        We use any event here because we need support for PollingObservers,
+        which are very susceptible to race conditions. By looking at each
+        event, we can catch changes in the filesystem regardless of the
+        state of the PollingObserver.
+
+        For instance, if a file is cached before an observer gets a chance
+        to take a snapshot of the directory, the file will only be marked
+        dirty on a `NewFileEvent`, since the observer doesn't know about
+        the file yet.
+        """
+
         if not event.is_directory:
             path = Path(event.src_path)
             key = self.cache.get_key(path)
 
             with self.cache.lock:
                 entry = self.cache.cache.get(key, None)
-                if entry is not None:
-                    self.cache.logger.debug(f"Got dirty file: {str(path)}")
+                if entry is not None and not entry[1]:
+                    self.cache.logger.debug(
+                        f"Got dirty file: {repr(str(path))}"
+                    )
                     self.cache.cache[key] = (entry[0], True)
 
 
@@ -72,7 +87,7 @@ class FileSystemCache:
         self.max_file_size_bytes = max_file_size_bytes
         self.observer = PollingObserver(timeout=polling_interval)
 
-        self.logger.info(f"Caching files from '{self.root}'")
+        self.logger.info(f"Caching files from {repr(str(self.root))}")
 
     def start_watchdog(self):
         """Start watchdog service to detect dirty cache files."""
@@ -168,7 +183,7 @@ class FileSystemCache:
             if size_bytes > self.max_file_size_bytes:
                 msg = (
                     "Got request to cache file greater than max size "
-                    f"{self.max_file_size_bytes}: {str(path)} "
+                    f"{self.max_file_size_bytes}: {repr(str(path))} "
                     f"({size_bytes} bytes)"
                 )
                 self.logger.debug(msg)
@@ -178,8 +193,9 @@ class FileSystemCache:
             content = path.read_bytes()
 
         self.logger.debug(
-            f"Caching {str(path)} ({str(self.compute_sha256(content))})"
+            f"Caching {repr(str(path))} ({str(self.compute_sha256(content))})"
         )
+        self.logger.debug(repr(content))
         with self.lock:
             self.cache[self.get_key(path)] = (
                 content,
