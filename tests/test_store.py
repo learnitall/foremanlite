@@ -14,13 +14,15 @@ from foremanlite.store import RedisMachineStore
 
 from .conftest import machine_strategy
 
+pytestmark = pytest.mark.usefixtures("logfix")
+
 
 class TestRedisMachineStore:
     """Test functionality of foremanlite.store.RedisMachineStore"""
 
     @staticmethod
     def test_redis_machine_store_does_not_fail_with_empty_db(
-        logfix, my_redisdb, machine_factory
+        my_redisdb, machine_factory
     ):
         """Test RedisMachineStore can handle working with an empty database."""
 
@@ -36,7 +38,7 @@ class TestRedisMachineStore:
     @staticmethod
     @given(machine=machine_strategy())
     def test_redis_machine_store_can_put_and_get(
-        machine: Machine, logfix, my_redisdb: Redis
+        machine: Machine, my_redisdb: Redis
     ):
         """Test the RedisMachineStore can put and get on a new db."""
 
@@ -49,7 +51,7 @@ class TestRedisMachineStore:
     @staticmethod
     @given(machine=machine_strategy())
     def test_redis_machine_store_can_delete(
-        machine: Machine, logfix, my_redisdb: Redis
+        machine: Machine, my_redisdb: Redis
     ):
         """Test the RedisMachineStore can delete a machine from the store."""
 
@@ -63,7 +65,7 @@ class TestRedisMachineStore:
     @staticmethod
     @given(machine=machine_strategy())
     def test_redis_machine_store_raises_value_on_deleting_missing_machine(
-        machine: Machine, logfix, my_redisdb: Redis
+        machine: Machine, my_redisdb: Redis
     ):
         """Test RedisMachineStore raises ValueError deleting missing machine"""
 
@@ -79,7 +81,7 @@ class TestRedisMachineStore:
         )
     )
     def test_redis_machine_store_can_find_machines_by_attr(
-        machines: t.List[Machine], logfix, my_redisdb: Redis
+        machines: t.List[Machine], my_redisdb: Redis
     ):
         """Test the RedisMachineStore can find machines by matching attrs."""
 
@@ -117,7 +119,7 @@ class TestRedisMachineStore:
         )
     )
     def test_redis_machine_store_can_list_all_machines(
-        machines: t.List[Machine], logfix, my_redisdb: Redis
+        machines: t.List[Machine], my_redisdb: Redis
     ):
         """Test the RedisMachineStore can return all machines in the store."""
 

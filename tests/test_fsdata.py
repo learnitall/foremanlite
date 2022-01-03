@@ -3,7 +3,6 @@
 # pylint: disable=redefined-outer-name,unused-argument
 """Test contents of foremanlite.fsdata module."""
 import re
-import shutil
 import time
 import typing as t
 from pathlib import Path
@@ -20,6 +19,9 @@ st_paired_content = st.tuples(st.text(), st.text()).filter(
 )
 
 
+pytestmark = pytest.mark.usefixtures("logfix")
+
+
 def populatedir(tmp: Path, files: t.Dict[str, str]):
     """Populate directory with given files."""
 
@@ -27,30 +29,6 @@ def populatedir(tmp: Path, files: t.Dict[str, str]):
         file_path = tmp / filename
         file_path.touch()
         assert file_path.write_text(content, "utf-8") == len(content)
-
-
-@pytest.fixture()
-def contentdir_factory(tmp_path_factory):
-    """
-    Get a temporary directory for cacheable content.
-
-    To add cacheable content to the directory, use hypothesis
-    to generate some text for you.
-
-    This fixture is needed because hypothesis is incompatible
-    with function-scoped fixtures.
-    """
-
-    def _create():
-        """Create the unique temporary directory"""
-        tmpdir: Path = tmp_path_factory.mktemp(
-            basename="fsdata", numbered=True
-        )
-        if len(list(tmpdir.iterdir())) > 0:
-            shutil.rmtree(tmpdir)
-        return tmpdir
-
-    return _create
 
 
 @pytest.fixture()
@@ -84,7 +62,7 @@ class TestFileSystemCache:
             values=st.text(),
         )
     )
-    def test_filesystem_cache_can_get_and_put(files, logfix, cache_factory):
+    def test_filesystem_cache_can_get_and_put(files, cache_factory):
         """Test the filesystem cache can store a file and read it back."""
 
         cache: FileSystemCache
@@ -105,7 +83,7 @@ class TestFileSystemCache:
     )
     @settings(max_examples=15)
     def test_filesystem_cache_can_detect_dirty_files(
-        files_paired, logfix, cache_factory
+        files_paired, cache_factory
     ):
         """Test the filesystem cache can detect if a file is dirty."""
 
@@ -141,7 +119,7 @@ class TestFileSystemCache:
         )
     )
     def test_filesystem_cache_put_returns_false_when_file_is_too_big(
-        files, logfix, cache_factory
+        files, cache_factory
     ):
         """Test the filesystem cache put returns False if file is too big."""
 
@@ -158,7 +136,7 @@ class TestDataFile:
 
     @staticmethod
     def test_datafile_validate_method_correctly_determines_file_can_be_read(
-        logfix, contentdir_factory
+        contentdir_factory,
     ):
         """Determine datatest.validate determines if Path can be read."""
 
@@ -202,9 +180,7 @@ class TestDataFile:
             min_size=1,
         )
     )
-    def test_datafile_can_read_with_no_cache(
-        files, logfix, contentdir_factory
-    ):
+    def test_datafile_can_read_with_no_cache(files, contentdir_factory):
         """Test DataFile can read a file without a cache instance."""
 
         contentdir: Path = contentdir_factory()
@@ -219,9 +195,7 @@ class TestDataFile:
             keys=st_filename, values=st_paired_content, min_size=1
         )
     )
-    def test_datafile_can_read_with_a_cache(
-        files_paired, logfix, cache_factory
-    ):
+    def test_datafile_can_read_with_a_cache(files_paired, cache_factory):
         """Test DataFile can read a file using a cache instance."""
 
         cache: FileSystemCache
@@ -253,7 +227,7 @@ class TestDataJinjaTemplate:
         )
     )
     def test_data_jinja_template_can_render_jinja_template(
-        template_dict, logfix, contentdir_factory
+        template_dict, contentdir_factory
     ):
         """Test DataJinjaTemplate can be used to render a jinja2 template."""
 
@@ -273,7 +247,7 @@ class TestDataJinjaTemplate:
 
     @staticmethod
     def test_data_jinja_template_can_use_custom_render_func(
-        logfix, contentdir_factory
+        contentdir_factory,
     ):
         """Test DataJinjaTemplate can use a custom render function."""
 
