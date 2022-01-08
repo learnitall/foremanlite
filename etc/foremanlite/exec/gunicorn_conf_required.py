@@ -98,7 +98,7 @@ def worker_exit(server: Arbiter, worker: Worker):
     """
     Before a worker is exited, clean up its `ServeContext` instance.
 
-    For more information see 
+    For more information see
     https://docs.gunicorn.org/en/stable/settings.html#worker-exit
     """
 
