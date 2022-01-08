@@ -33,13 +33,24 @@ class StaticFiles(Resource):
         context = get_context()
         static_dir_path = context.data_dir / STATIC_DIR
         requested_path = static_dir_path / filename
-        _logger.info(f"Got request for static file ({str(requested_path)})")
+        _logger.info(f"Got request for static file: {str(requested_path)}")
+        data_file = DataFile(
+            requested_path,
+            cache=context.cache,
+        )
+        try:
+            data_file.validate()
+        except ValueError as err:
+            _logger.warning(
+                "Validation failed for requested static file %s: %s",
+                repr(str(requested_path)),
+                err,
+            )
+            return ("Requested file cannot be found", 404)
+
         try:
             resp = make_response(
-                DataFile(
-                    requested_path,
-                    cache=context.cache,
-                ).read(),
+                data_file.read(),
                 200,
             )
             resp.headers["Content-Type"] = "text/plain"
