@@ -5,9 +5,14 @@ import typing as t
 
 from flask_restx import Api, Namespace
 
-from foremanlite.serve.routes import ignition, ipxe, static
+from foremanlite.serve.routes import ignition, ipxe, machines, static
 
-namespaces: t.Tuple[Namespace, ...] = (ignition.ns, ipxe.ns, static.ns)
+namespaces: t.Tuple[Namespace, ...] = (
+    ignition.ns,
+    ipxe.ns,
+    static.ns,
+    machines.ns,
+)
 
 
 def register_routes(api: Api):
