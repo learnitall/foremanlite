@@ -14,7 +14,12 @@ from foremanlite.logging import BASENAME
 from foremanlite.logging import get as get_logger
 from foremanlite.serve.context import ServeContext, get_context, set_context
 from foremanlite.serve.routes import register_routes
-from foremanlite.vars import GUNICORN_REQUIRED_CONFIG, GUNICORN_CONFIG, GUNICORN_DEFAULT_CONFIG, VERSION
+from foremanlite.vars import (
+    GUNICORN_CONFIG,
+    GUNICORN_DEFAULT_CONFIG,
+    GUNICORN_REQUIRED_CONFIG,
+    VERSION,
+)
 
 _logger = get_logger("app")
 _APP: Flask
