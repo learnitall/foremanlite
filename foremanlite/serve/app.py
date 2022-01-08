@@ -14,7 +14,7 @@ from foremanlite.logging import BASENAME
 from foremanlite.logging import get as get_logger
 from foremanlite.serve.context import ServeContext, get_context, set_context
 from foremanlite.serve.routes import register_routes
-from foremanlite.vars import GUNICORN_CONFIG, GUNICORN_DEFAULT_CONFIG, VERSION
+from foremanlite.vars import GUNICORN_REQUIRED_CONFIG, GUNICORN_CONFIG, GUNICORN_DEFAULT_CONFIG, VERSION
 
 _logger = get_logger("app")
 _APP: Flask
@@ -129,9 +129,16 @@ def start():
 
     is_ok = lambda p: p.exists() and os.access(p, os.R_OK)
 
+    gunicorn_required_config = context.exec_dir / GUNICORN_REQUIRED_CONFIG
+    if not is_ok(gunicorn_required_config):
+        raise ValueError(
+            "Unable to find required gunicorn configuration."
+            f"Was expected at {str(gunicorn_required_config)}"
+        )
+    configs = [gunicorn_required_config]
+
     gunicorn_default_config = context.exec_dir / GUNICORN_DEFAULT_CONFIG
     default_available = is_ok(gunicorn_default_config)
-    configs = []
     if context.config.gunicorn_layer_default:
         if not default_available:
             raise ValueError(
@@ -164,7 +171,4 @@ def start():
         f"{', '.join([str(c) for c in configs])}"
     )
 
-    context = get_context()
-
-    context.cache.start_watchdog()
     ForemanliteGunicornApp(app=app, config_files=configs, ctx=context).run()

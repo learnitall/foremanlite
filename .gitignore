@@ -144,3 +144,4 @@ cython_debug/
 etc/foremanlite/exec/*
 !etc/foremanlite/exec/.gitkeep
 !etc/foremanlite/exec/gunicorn_conf_default.py
+!etc/foremanlite/exec/gunicorn_conf_required.py

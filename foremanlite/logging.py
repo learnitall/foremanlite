@@ -7,7 +7,7 @@ import typing as t
 
 BASENAME = "foremanlite"  # Base logger name
 # Format of  log messages
-FORMAT = "%(asctime)s - %(levelname)s - %(name)s :: %(message)s"
+FORMAT = "%(asctime)s - %(process)s - %(levelname)s - %(name)s :: %(message)s"
 ROTATING_FILE_HANDLER_OPTS: t.Dict[str, t.Any] = {
     "mode": "0644",
     "maxBytes": 500 * (10 ** 6),  # 500 MB

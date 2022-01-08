@@ -39,6 +39,7 @@ BUTANE_DIR = "butane"
 IGNITION_DIR_PATH = "ignition"
 
 # --- GUNICORN ---
+GUNICORN_REQUIRED_CONFIG = "gunicorn_conf_required.py"
 GUNICORN_DEFAULT_CONFIG = "gunicorn_conf_default.py"
 GUNICORN_CONFIG = "gunicorn_conf.py"
 
