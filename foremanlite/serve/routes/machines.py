@@ -118,7 +118,7 @@ class UpdateMachine(Resource):
         requested_machine: Machine = parse_machine_from_request(request)
         requested_machine_uuid = get_uuid(machine=requested_machine)
         _logger.info(
-            "Received request to update machine with uuid %s with the"
+            "Received request to update machine with uuid %s with the "
             "following parameters: %s",
             requested_machine_uuid,
             requested_machine.dict(),
