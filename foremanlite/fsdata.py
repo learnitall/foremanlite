@@ -195,7 +195,6 @@ class FileSystemCache:
         self.logger.debug(
             f"Caching {repr(str(path))} ({str(self.compute_sha256(content))})"
         )
-        self.logger.debug(repr(content))
         with self.lock:
             self.cache[self.get_key(path)] = (
                 content,
