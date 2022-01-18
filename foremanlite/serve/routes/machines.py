@@ -132,7 +132,11 @@ class UpdateMachine(Resource):
             return no_known_machine_resp
 
         result: Machine = merge_with_store(
-            store, requested_machine, known_machine=known_machine
+            store,
+            _logger,
+            requested_machine,
+            known_machine=known_machine,
+            known_over_request=False,
         )
         return _make_machine_response(result)
 
@@ -167,5 +171,10 @@ class AddMachine(Resource):
             requested_machine.json(),
         )
 
-        result: Machine = merge_with_store(store, requested_machine)
+        result: Machine = merge_with_store(
+            store,
+            _logger,
+            requested_machine,
+            known_over_request=False,
+        )
         return _make_machine_response(result)

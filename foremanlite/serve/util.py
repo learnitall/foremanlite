@@ -191,8 +191,10 @@ def construct_machine_vars(*_, **kwargs) -> t.Dict[str, t.Any]:
 
 def merge_with_store(
     store: BaseMachineStore,
+    logger: logging.Logger,
     machine_request: Machine,
     known_machine: t.Optional[Machine] = None,
+    known_over_request: bool = True,
 ) -> Machine:
     """
     Check if given machine is in the store.
@@ -206,23 +208,56 @@ def merge_with_store(
     then update the machine in the store with the values of the given
     machine and return the result.
 
+    This behavior can be reversed by providing `known_over_request=False`.
+    When this is given, the machine in the request is updated with information
+    in the store and the result is returned.
+
     If it is already known that the given machine is in the store, and
     just a merge is needed, then it can be provided under the 'known_machine'
     attribute.
     """
 
+    uuid = get_uuid(machine=machine_request)
     if known_machine is None:
-        known_machine = store.get(get_uuid(machine=machine_request))
+        logger.debug("Checking store for machine with uuid %s", uuid)
+        known_machine = store.get(uuid)
+        logger.debug(
+            "Result for checking store for machine with uuid %s: %s",
+            uuid,
+            known_machine,
+        )
+
     if known_machine is None:
+        logger.debug("Machine with uuid %s is not in the store, adding", uuid)
         machine = machine_request
         store.put(machine)
     elif hash(known_machine) != hash(machine_request):
-        merged = known_machine.dict()
-        merged.update(machine_request.dict())
+        logger.debug(
+            "Machine with uuid %s has existing entry in the store, "
+            "merging. Given: %s, known: %s",
+            uuid,
+            machine_request.dict(),
+            known_machine.dict(),
+        )
+        if known_over_request:
+            merged = machine_request.dict()
+            merged.update(known_machine.dict())
+        else:
+            merged = known_machine.dict()
+            merged.update(machine_request.dict())
         merged_machine = Machine(**merged)
+        logger.debug(
+            "Result of merging machine with uuid %s with known entry: %s",
+            uuid,
+            merged_machine.dict(),
+        )
         store.put(merged_machine)
         machine = merged_machine
     else:
+        logger.debug(
+            "Given machine with uuid %s has same entry as" "that in the store",
+            uuid,
+        )
         machine = known_machine
 
     return machine
@@ -291,8 +326,13 @@ def handle_template_request(
         return (f"Unable to handle request: {err}", 400)
 
     if context.store is not None:
-        machine = merge_with_store(context.store, machine_request)
+        logger.info("Checking for machine in store.")
+        machine = merge_with_store(context.store, logger, machine_request)
     else:
+        logger.warning(
+            "Store is not configured, "
+            "Unable to check if given machine has already been seen."
+        )
         machine = machine_request
 
     logger.info(f"Got request from machine {machine}: {str(resolved_fn)}")
