@@ -89,7 +89,15 @@ class RedisMachineStore(BaseMachineStore):
             self.redis.set(self.MACHINES_KEY, f'["{uuid}"]')
         else:
             machine_list = orjson.loads(machines)
-            machine_list.append(uuid)
+            if uuid in machine_list:
+                self.logger.info(
+                    "Was told to put machine with uuid %s in the store, "
+                    "however it already is present. Updating entry with "
+                    "the given machine.",
+                    uuid,
+                )
+            else:
+                machine_list.append(uuid)
             self.redis.set(
                 self.MACHINES_KEY, orjson.dumps(machine_list).decode("utf-8")
             )
