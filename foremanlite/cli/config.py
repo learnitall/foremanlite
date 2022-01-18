@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Describe configuration variables for runtime."""
+import typing as t
 from dataclasses import dataclass
 
-from foremanlite.machine import Machine
+from foremanlite.machine import Arch, Mac
 
 
 @dataclass
@@ -42,9 +43,13 @@ class Config:
 
 
 @dataclass
-class MachineConfig(Machine):
+class MachineConfig:
     """Define config variables for a Machine instance."""
 
+    mac: Mac
+    arch: Arch
+    name: t.Optional[str]
+    provision: t.Optional[bool]
     mac_help: str = "Mac address of the machine"
     arch_help: str = "Arch of the machine"
     name_help: str = "Name of the machine"

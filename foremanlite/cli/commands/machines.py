@@ -190,7 +190,6 @@ def update_machine(config: Config, **kwargs):
 
 
 @click.group()
-@config_to_click(MachineConfig)
 @click.pass_context
 def cli(_, **__):
     """
@@ -219,6 +218,7 @@ def ls(ctx, **kwargs):  # pylint: disable=invalid-name
 
 
 @cli.command()
+@config_to_click(MachineConfig)
 @click.pass_context
 def add(ctx, **kwargs):
     """
@@ -237,6 +237,7 @@ def add(ctx, **kwargs):
 
 
 @cli.command()
+@config_to_click(MachineConfig)
 @click.pass_context
 def delete(ctx, **kwargs):
     """
@@ -255,6 +256,7 @@ def delete(ctx, **kwargs):
 
 
 @cli.command()
+@config_to_click(MachineConfig)
 @click.pass_context
 def update(ctx, **kwargs):
     """
