@@ -13,6 +13,8 @@ ROTATING_FILE_HANDLER_OPTS: t.Dict[str, t.Any] = {
     "maxBytes": 500 * (10 ** 6),  # 500 MB
     "backupCount": 5,
 }
+DUMB_LOGGER = logging.getLogger(BASENAME).getChild("_dump")
+DUMB_LOGGER.disabled = True
 
 
 def get_stream_handler(
