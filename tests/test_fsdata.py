@@ -36,18 +36,26 @@ def cache_factory(contentdir_factory):
     """Create and teardown a FileSystemCache instance."""
 
     class _Create:
-        """Context manager for the file system cache"""
+        """
+        Context manager for the file system cache.
+
+        Historically the FileSystemCache required startup and teardown
+        functions to be called, which this context manager handled.
+        These are no longer required, however this structure is kept
+        as a convenience and in case it is needed again in the future.
+
+        If it ain't broke don't fix it yeah?
+        """
 
         def __init__(self):
             self.contentdir: Path = contentdir_factory()
-            self.cache = FileSystemCache(self.contentdir, polling_interval=0.1)
+            self.cache = FileSystemCache(self.contentdir)
 
         def __enter__(self):
-            self.cache.start_watchdog()
             return self.cache, self.contentdir
 
         def __exit__(self, *_):
-            self.cache.stop_watchdog()
+            return
 
     return _Create
 
@@ -102,12 +110,12 @@ class TestFileSystemCache:
             for filename in files:
                 target_file = contentdir / filename
                 cache.put(target_file)
+                time.sleep(0.001)  # little buffer to reduce flakeyness
                 target_file.write_text(dirt[filename])
-                waited_time = 0
-                while cache.get(target_file) is not None:
-                    time.sleep(0.05)
-                    waited_time += 0.05
-                    assert waited_time < 0.5
+
+                cache_result = cache.get(target_file)
+                assert cache_result is not None
+                assert cache_result.decode("utf-8") == dirt[filename]
 
     @staticmethod
     @given(
@@ -200,17 +208,23 @@ class TestDataFile:
 
         cache: FileSystemCache
         contentdir: Path
+        # this last modified time will stay greater than the time of test
+        # execution for about 9E9s - 1.65E9 = 7.35E9 seconds ~ 233 years
+        # as of 1647140610 (3/12/22)
+        # 1E9 term at the end converts to nanoseconds
+        monkey_mtime = int(9 * 10e10 * 1e9)
+        other_content: str
         with cache_factory() as (cache, contentdir):
-            # needed for this test, as we change file contents
-            # and don't want the file to marked as dirty
-            cache.stop_watchdog()
             for filename, (content, other_content) in files_paired.items():
                 path = contentdir / filename
                 path.write_text(content)
                 data_file = DataFile(path, cache=cache)
                 assert data_file.read().decode("utf-8") == content
-                path.write_text(other_content)
-                assert data_file.read().decode("utf-8") == content
+                cache.cache[cache.get_key(path)] = (
+                    other_content.encode("utf-8"),
+                    monkey_mtime,
+                )
+                assert data_file.read().decode("utf-8") == other_content
 
 
 class TestDataJinjaTemplate:

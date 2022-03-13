@@ -4,52 +4,14 @@
 import hashlib
 import logging
 import os
-import threading
 import typing as t
 from pathlib import Path
 
 from jinja2 import Template
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
-from watchdog.observers.polling import PollingObserver
 
 from foremanlite.logging import get as get_logger
 
 SHA256 = t.NewType("SHA256", str)
-
-
-class _FSEventHandler(FileSystemEventHandler):
-    """Event handler for our cache's filesystem watchdog."""
-
-    def __init__(self, cache: "FileSystemCache"):
-        super().__init__()
-        self.cache = cache
-
-    def on_any_event(self, event: FileSystemEvent):
-        """
-        Check if the given path is dirty and mark it as so in the cache.
-
-        We use any event here because we need support for PollingObservers,
-        which are very susceptible to race conditions. By looking at each
-        event, we can catch changes in the filesystem regardless of the
-        state of the PollingObserver.
-
-        For instance, if a file is cached before an observer gets a chance
-        to take a snapshot of the directory, the file will only be marked
-        dirty on a `NewFileEvent`, since the observer doesn't know about
-        the file yet.
-        """
-
-        if not event.is_directory:
-            path = Path(event.src_path)
-            key = self.cache.get_key(path)
-
-            with self.cache.lock:
-                entry = self.cache.cache.get(key, None)
-                if entry is not None and not entry[1]:
-                    self.cache.logger.debug(
-                        f"Got dirty file: {repr(str(path))}"
-                    )
-                    self.cache.cache[key] = (entry[0], True)
 
 
 class FileSystemCache:
@@ -63,9 +25,6 @@ class FileSystemCache:
     max_file_size_bytes : int, optional
         Set an upper limit on the size of files (in bytes) that
         can be cached. If omitted, no restriction will be used.
-    polling_interval : float, 1.0
-        Interval in-between polling directory for changes.
-        Defaults to 1 second.
 
     Raises
     ------
@@ -73,37 +32,20 @@ class FileSystemCache:
         if dir does not exist
     """
 
+    __slots__ = ["root", "cache", "logger", "max_file_size_bytes"]
+
     def __init__(
         self,
         root_dir: t.Union[str, Path],
         max_file_size_bytes: t.Optional[int] = None,
-        polling_interval: float = 1.0,
     ):
         self.root: Path = Path(root_dir)
-        # Filename hash: content, is dirty
-        self.cache: t.Dict[SHA256, t.Tuple[bytes, bool]] = {}
-        self.lock: threading.Lock = threading.Lock()
+        # Filename hash: content, last modified time in seconds
+        self.cache: t.Dict[SHA256, t.Tuple[bytes, int]] = {}
         self.logger: logging.Logger = get_logger("FileSystemCache")
         self.max_file_size_bytes = max_file_size_bytes
-        self.observer = PollingObserver(timeout=polling_interval)
 
         self.logger.info(f"Caching files from {repr(str(self.root))}")
-
-    def start_watchdog(self):
-        """Start watchdog service to detect dirty cache files."""
-
-        self.observer.schedule(
-            _FSEventHandler(self), self.root, recursive=True
-        )
-        self.observer.start()
-        self.logger.info("Started filesystem cache watchdog")
-
-    def stop_watchdog(self):
-        """Stop the watchdog service."""
-
-        self.logger.info("Stopping filesystem cache watchdog")
-        self.observer.stop()
-        self.observer.join()
 
     @staticmethod
     def compute_sha256(content: bytes) -> SHA256:
@@ -126,11 +68,70 @@ class FileSystemCache:
 
         return self.compute_sha256(str(path).encode("utf-8"))
 
+    def is_dirty(
+        self,
+        path: Path,
+        entry: t.Optional[t.Tuple[bytes, int]] = None,
+        stat: t.Optional[os.stat_result] = None,
+    ) -> bool:
+        """
+        Check if given path has changed on disk since being cached.
+
+        If the given path is not in the cache, then a ValueError is raised.
+
+        If the current last modified time cannot be determined for the given
+        path, then an `OSError`, or subclass thereof, is raised.
+
+        Parameters
+        ----------
+        path : Path
+        entry : tuple of str and int, optional
+            If the entry for the given path in the cache has already been
+            retrieved for the given Path, then it can be provided here.
+        stat : os.stat_result, optional
+            If the `os.stat_result` has already been retrieved for the given
+            Path, then it can be provided here.
+
+        Returns
+        -------
+        bool
+
+        Raises
+        ------
+        ValueError
+        OSError
+        """
+
+        if entry is None:
+            entry = self.cache.get(self.get_key(path))
+        if entry is None:
+            raise ValueError(
+                "Was requested to check if given path is dirty, but file is "
+                f"not present in the cache: {repr(str(path))}",
+            )
+        _, last_known_mtime = entry
+
+        if stat is None:
+            stat = path.stat()
+        mtime = stat.st_mtime_ns
+
+        if last_known_mtime < mtime:
+            self.logger.info("Found dirty file in cache: %s", repr(str(path)))
+            return True
+        return False
+
     def get(self, path: Path) -> t.Optional[bytes]:
         """
         Check if given Path is cached, returning its content if it is.
 
-        If the given path is not cached, return `None`
+        If the given path is not cached, return `None`. If the given
+        file is cached, but has changed on disk, this method will
+        attempt to update the cache with the file's current contents
+        (using `put`). If this fails, an `OSError` will be raised.
+
+        If the given path is not in the cache, and the last known
+        modified time of the given file is unable to be determined,
+        then an OSError (or subclass thereof) is raised.
 
         Parameters
         ----------
@@ -140,18 +141,26 @@ class FileSystemCache:
         Returns
         -------
         str
+
+        Raises
+        ------
+        OSError
         """
 
-        with self.lock:
-            entry = self.cache.get(self.get_key(path))
+        entry = self.cache.get(self.get_key(path))
         if entry is None:
             return None
 
-        content, dirty = entry
-        if not dirty:
-            return content
+        content, _ = entry
 
-        return None
+        if self.is_dirty(path, entry=entry):
+            success = self.put(path)
+            if not success:
+                raise OSError(
+                    f"Unable to update dirty file in cache: {repr(str(path))}"
+                )
+            return self.get(path)
+        return content
 
     def put(self, path: Path, content: t.Optional[bytes] = None) -> bool:
         """
@@ -174,12 +183,17 @@ class FileSystemCache:
             A file will not be cached successfully if its size in
             bytes is greater than the set max limit. See the
             `max_file_size_bytes` parameter.
+
+        Raises
+        ------
+        OSError
+            If the given Path cannot be read successfully.
         """
 
+        path_stat: t.Optional[os.stat_result] = None
         if self.max_file_size_bytes is not None:
-            size_bytes = (
-                path.stat().st_size if content is None else len(content)
-            )
+            path_stat = path.stat()
+            size_bytes = path_stat.st_size if content is None else len(content)
             if size_bytes > self.max_file_size_bytes:
                 msg = (
                     "Got request to cache file greater than max size "
@@ -191,15 +205,17 @@ class FileSystemCache:
 
         if content is None:
             content = path.read_bytes()
+        if path_stat is None:
+            path_stat = path.stat()
+
+        mtime = path_stat.st_mtime_ns
 
         self.logger.debug(
-            f"Caching {repr(str(path))} ({str(self.compute_sha256(content))})"
+            f"Caching {repr(str(path))}: "
+            f"SHA256: {str(self.compute_sha256(content))}), "
+            f"mtime_ns: {mtime}"
         )
-        with self.lock:
-            self.cache[self.get_key(path)] = (
-                content,
-                False,
-            )
+        self.cache[self.get_key(path)] = (content, mtime)
         return True
 
 
@@ -310,7 +326,7 @@ class DataJinjaTemplate(DataFile):
         self,
         path: Path,
         cache: t.Optional[FileSystemCache] = None,
-        jinja_render_func: JinjaRenderFuncCallable = None,
+        jinja_render_func: t.Optional[JinjaRenderFuncCallable] = None,
     ):
         super().__init__(path, cache)
         if jinja_render_func is None:
