@@ -12,7 +12,6 @@ import typing as t
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from pydantic import ValidationError
 
 from foremanlite.machine import (
     Arch,
@@ -22,7 +21,6 @@ from foremanlite.machine import (
     MachineGroupSet,
     MachineSelector,
     SelectorMatchStr,
-    _MachineGroupSetLockRegistry,
     get_uuid,
 )
 
@@ -111,19 +109,6 @@ class TestGetUUID:
 
 class TestMachineSelector:
     """Test functionality of foremanlite.machine.MachineSelector."""
-
-    @staticmethod
-    @given(machine_strategy())
-    def test_machine_selector_raises_validation_error_on_bad_regex_input(
-        machine: Machine,
-    ):
-        """Test regex MachineSelector raises error if non-regex str given."""
-
-        for key, value in machine.dict().items():
-            with pytest.raises(ValidationError):
-                # using the exact value with its different types should
-                # raise an error, since not given a regex string
-                MachineSelector(type="regex", attr=key, val=value)
 
     @staticmethod
     @given(two_unique_machines_strategy())
@@ -236,26 +221,6 @@ class TestSelectorMatchStr:
             selectors.append(selector)
 
         SelectorMatchStr(exp=exp).apply(machine_one, selectors)
-
-
-class TestMachineGroupSetLockRegistry:
-    """Test function of foremanlite.machine._MachineGroupSetLockRegistry"""
-
-    @staticmethod
-    @given(
-        st.builds(MachineGroupSet, groups=st.just([])),
-        st.builds(MachineGroupSet, groups=st.just([])),
-    )
-    def test_registry_only_uses_one_lock_per_object(
-        set1: MachineGroupSet, set2: MachineGroupSet
-    ):
-        """Test the registry can distinguish between objects."""
-
-        assert id(set1) != id(set2)
-        registry = _MachineGroupSetLockRegistry()
-        lock1 = registry.lock(set1)
-        lock2 = registry.lock(set2)
-        assert lock1 != lock2
 
 
 class TestMachineGroupSet:

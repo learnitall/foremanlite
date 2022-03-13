@@ -42,6 +42,3 @@ IGNITION_DIR_PATH = "ignition"
 GUNICORN_REQUIRED_CONFIG = "gunicorn_conf_required.py"
 GUNICORN_DEFAULT_CONFIG = "gunicorn_conf_default.py"
 GUNICORN_CONFIG = "gunicorn_conf.py"
-
-# --- FSDATA ---
-CACHE_POLLING_INTERVAL = 1

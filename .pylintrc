@@ -11,6 +11,7 @@ disable=
     too-few-public-methods,
     too-many-arguments,
     too-many-instance-attributes,
+    too-many-locals,
     fixme,
     global-statement,
     raise-missing-from,

@@ -24,7 +24,9 @@ def print_groups(config: Config):
         logger.disabled = True
 
     group_dir = ServeContext.get_dirs(config, logger=logger)[2]
-    machine_group_set = ServeContext.get_group_set(group_dir, logger=logger)
+    machine_group_set = ServeContext.get_group_set(
+        group_dir, cache=None, logger=logger
+    )
     click.echo(json.dumps(orjson.loads(machine_group_set.json()), indent=4))
 
 

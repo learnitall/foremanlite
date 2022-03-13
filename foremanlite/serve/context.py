@@ -12,18 +12,9 @@ import redis
 from foremanlite.cli.config import Config
 from foremanlite.fsdata import FileSystemCache
 from foremanlite.logging import get as get_logger
-from foremanlite.machine import (
-    DirectoryMachineGroupSetWatchdog,
-    MachineGroupSet,
-    load_groups_from_dir,
-)
+from foremanlite.machine import MachineGroupSet
 from foremanlite.store import BaseMachineStore, RedisMachineStore
-from foremanlite.vars import (
-    CACHE_POLLING_INTERVAL,
-    DATA_DIR,
-    EXEC_DIR,
-    GROUPS_DIR,
-)
+from foremanlite.vars import DATA_DIR, EXEC_DIR, GROUPS_DIR
 
 _dumb_logger = logging.getLogger("_dumb_logger")
 _dumb_logger.disabled = True
@@ -46,7 +37,6 @@ class ServeContext:
     cache: FileSystemCache
     store: t.Optional[BaseMachineStore]
     groups: MachineGroupSet
-    groups_watchdog: DirectoryMachineGroupSetWatchdog
 
     @staticmethod
     def get_dirs(
@@ -104,30 +94,14 @@ class ServeContext:
 
     @staticmethod
     def get_group_set(
-        groups_dir: Path, logger: logging.Logger = _dumb_logger
+        groups_dir: Path,
+        cache: t.Optional[FileSystemCache] = None,
+        logger: logging.Logger = _dumb_logger,
     ) -> MachineGroupSet:
         """Get MachineGroupSet using the given config"""
 
-        groups = load_groups_from_dir(
-            groups_dir=groups_dir,
-            cache=None,
-            logger=logger,
-        )
-        return MachineGroupSet(groups=groups)
-
-    @staticmethod
-    def get_group_watchdog(
-        groups_dir: Path,
-        groups: MachineGroupSet,
-        cache: FileSystemCache,
-    ) -> DirectoryMachineGroupSetWatchdog:
-        """Get DirectoryMachineGroupSetWatchdog using the given config"""
-
-        return DirectoryMachineGroupSetWatchdog(
-            groups_dir=groups_dir,
-            cache=cache,
-            polling_interval=CACHE_POLLING_INTERVAL,
-            machine_group_set=groups,
+        return MachineGroupSet.from_dir(
+            groups_dir=groups_dir, logger=logger, cache=cache
         )
 
     @staticmethod
@@ -141,7 +115,6 @@ class ServeContext:
             cache = FileSystemCache(
                 data_dir,
                 max_file_size_bytes=config.max_cache_file_size,
-                polling_interval=CACHE_POLLING_INTERVAL,
             )
         except ValueError as err:
             logger.error(
@@ -163,8 +136,7 @@ class ServeContext:
         )
         store = cls.get_store(config, logger)
         cache = cls.get_cache(config, logger)
-        group_set = cls.get_group_set(groups_dir, logger)
-        group_watchdog = cls.get_group_watchdog(groups_dir, group_set, cache)
+        group_set = cls.get_group_set(groups_dir, cache=cache, logger=logger)
         return cls(
             config=config,
             config_dir=config_dir,
@@ -175,7 +147,6 @@ class ServeContext:
             cache=cache,
             store=store,
             groups=group_set,
-            groups_watchdog=group_watchdog,
         )
 
     def start(self):
@@ -184,14 +155,8 @@ class ServeContext:
         if isinstance(self.store, RedisMachineStore):
             self.store.ping()
 
-        self.cache.start_watchdog()
-        self.groups_watchdog.start()
-
     def stop(self):
         """Run one-time teardown tasks."""
-
-        self.cache.stop_watchdog()
-        self.groups_watchdog.stop()
 
 
 _CONTEXT: ServeContext

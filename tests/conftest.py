@@ -23,6 +23,7 @@ settings.register_profile(
     suppress_health_check=(
         HealthCheck.too_slow,
         HealthCheck.function_scoped_fixture,
+        HealthCheck.data_too_large,
     ),
     deadline=None,
     max_examples=15,

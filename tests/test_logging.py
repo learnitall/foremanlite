@@ -15,7 +15,7 @@ def test_value_error_raised_if_file_path_not_given_for_setup():
         foremanlite.logging.setup(use_file=True, file_path=None)
 
     with pytest.raises(ValueError):
-        foremanlite.logging.setup(use_file=True, file_path=1)
+        foremanlite.logging.setup(use_file=True, file_path=1)  # type: ignore
 
     foremanlite.logging.setup(use_file=False, file_path=None)
 

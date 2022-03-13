@@ -58,7 +58,7 @@ def config_strategy(draw):
     machines = draw(
         st.lists(
             machine_strategy(),
-            unique_by=lambda machine: get_uuid(machine=machine),
+            unique_by=lambda m: get_uuid(machine=m),  # type: ignore
             min_size=3,
         )
     )

@@ -4,20 +4,17 @@ import functools
 import hashlib
 import logging
 import os
-import threading
 import typing as t
-from abc import ABC, abstractmethod
+from abc import ABC
 from enum import Enum
 from pathlib import Path
 
 import jinja2
 import orjson
 from pydantic import BaseModel, validator
-from watchdog.events import FileModifiedEvent, FileSystemEventHandler
-from watchdog.observers.polling import PollingObserver
 
 from foremanlite.fsdata import SHA256, DataFile, FileSystemCache
-from foremanlite.logging import get as get_logger
+from foremanlite.logging import DUMB_LOGGER
 
 Mac = t.NewType("Mac", str)
 
@@ -160,7 +157,7 @@ class MachineSelector(ABC, _MachineStuffsBaseModel):
 
     type: MachineSelectorType
     attr: str
-    val: t.Union[None, bool, Arch, t.Pattern, Mac, str]
+    val: t.Any
     name: t.Optional[str] = None
 
     class Config(_MachineStuffsBaseModelConfig):
@@ -342,15 +339,57 @@ class MachineGroup(_MachineStuffsBaseModel):
     match_str : SelectorMatchStr, optional
         Match string used to determine how selectors
         are combined to match onto a machine.
+    path : Path, optional
+        Location to file where this group was loaded from,
+        if applicable.
     """
 
     selectors: t.List[MachineSelector]
     name: str
     vars: t.Optional[t.Dict[str, t.Any]] = None
     match_str: t.Optional[SelectorMatchStr] = None
+    path: t.Optional[Path] = None
 
     def __hash__(self):
         return hash(repr(self))
+
+    @classmethod
+    def from_path(
+        cls,
+        path: Path,
+        logger: logging.Logger,
+        cache: t.Optional[FileSystemCache],
+    ) -> "MachineGroup":
+        """
+        Parse the given machine group file into a MachineGroup instance.
+
+        Parameters
+        ----------
+        path : Path
+        logger : logging.Logger
+        cache : FileSystemCache, optional
+
+        Raises
+        ------
+        OSError
+            If the path cannot be read.
+        ValueError
+            If the path does not point to a valid json file describing a
+            MachineGroup.
+
+        Returns
+        -------
+        MachineGroup
+        """
+
+        try:
+            content = DataFile(path, cache=cache).read().decode("utf-8")
+            group = MachineGroup.parse_raw(content)
+            group.path = path
+            return group
+        except (OSError, ValueError) as err:
+            logger.error("Unable to parse group file %s: %s", path, err)
+            raise err
 
     @validator("vars")
     def validate_var_names_are_not_empty_strings(
@@ -419,122 +458,144 @@ class MachineGroup(_MachineStuffsBaseModel):
         return self._filter(self, tuple(machines))
 
 
-def load_groups_from_dir(
-    groups_dir: Path,
-    cache: t.Optional[FileSystemCache] = None,
-    logger: t.Optional[logging.Logger] = None,
-) -> t.List[MachineGroup]:
-    """
-    Load a set of groups from files in the given directory (recursive).
-
-    Will recursively look in the given `groups_dir` for json files. Any
-    json file found will be treated as a group definition.
-
-    Parameters
-    ----------
-    groups_dir : Path
-        Directory containing json files defining MachineGroup instances.
-        See `MachineGroup.from_json` for more information.
-    cache : FileSystemCache, optional
-        FileSystemCache instance to read files with.
-    logger : logging.Logger, optional
-        logger to log warnings and issues to.
-
-    Raises
-    ------
-    ValueError
-        if unable to parse group file
-    OSError
-        if unable to read group file
-    """
-
-    if logger is None:
-        logger = logging.getLogger("_dumb_logger")
-        logger.disabled = True
-    groups = []
-    group_files: t.List[Path] = []
-    # https://www.sethserver.com/python/recursively-list-files.html
-    queue_dir: t.List[t.Union[Path, str]] = [groups_dir]
-    is_json = lambda f: str(f).endswith(".json")
-
-    def on_error(err: OSError):
-        logger.warning("Error occurred while looking for group files: %s", err)
-
-    logger.info("Looking for group files in %s", groups_dir)
-    while len(queue_dir) > 0:
-        for (path, dirs, files) in os.walk(queue_dir.pop(), onerror=on_error):
-            queue_dir.extend(dirs)
-            files = [file for file in files if is_json(file)]
-            group_files.extend(
-                [Path(os.path.join(path, file)) for file in files]
-            )
-
-    for group_file in group_files:
-        try:
-            content = (
-                DataFile(Path(group_file), cache=cache).read().decode("utf-8")
-            )
-            groups.append(MachineGroup.parse_raw(content))
-        except (OSError, ValueError) as err:
-            logger.error("Unable to parse group file %s: %s", group_file, err)
-            raise err
-
-    return groups
-
-
-class _MachineGroupSetLockRegistry:
-    """
-    Registry for locks on a MachineGroupSet.
-
-    Each unique MachineGroupSet instance gets its own
-    `threading.Lock` instance in the registry. Instances
-    are identified using the `id` function.
-
-    Using a registry like this will keep the MachineGroupSet
-    pickleable, as it doesn't have to store its own locks as
-    an instance attribute.
-    """
-
-    registry: t.Dict[int, threading.Lock] = {}
-
-    @classmethod
-    def lock(cls, machine_group_set: "MachineGroupSet"):
-        """Return threading.Lock instance for given MachineGroupSet."""
-        set_id = id(machine_group_set)
-        result = cls.registry.get(set_id, None)
-        if result is None:
-            new_lock = threading.Lock()
-            cls.registry[set_id] = new_lock
-            result = new_lock
-        return result
-
-
 class MachineGroupSet(_MachineStuffsBaseModel):
     """
     Manage a set of MachineGroups.
-
-    Accessing groups directly through the `groups` attribute should
-    only be done after acquiring the lock at the `lock` attribute.
-    All method of this class perform said acquire/release
-    automatically. This keeps the set of groups thread-safe, for
-    use cases such as the `MachineGroupSetWatchdog`.
 
     Parameters
     ----------
     groups : set of MachineGroup
         Set of MachineGroup instances to manage.
+    cache : FileSystemCache, optional
+        Optional FileSystemCache to use for determining if groups
+        have changed on disk.
     """
 
     groups: t.List[MachineGroup]
+    cache: t.Optional[FileSystemCache]
 
     def __hash__(self):
         return hash(repr(self))
 
+    @classmethod
+    def from_dir(
+        cls,
+        groups_dir: Path,
+        logger: logging.Logger,
+        cache: t.Optional[FileSystemCache] = None,
+    ) -> "MachineGroupSet":
+        """
+        Load a set of groups from files in the given directory (recursive).
+
+        Will recursively look in the given `groups_dir` for json files. Any
+        json file found will be treated as a group definition.
+
+        Parameters
+        ----------
+        groups_dir : Path
+            Directory containing json files defining MachineGroup instances.
+            See `MachineGroup.from_json` for more information.
+        cache : FileSystemCache, optional
+            FileSystemCache instance to read files with. Will be saved to
+            help determine if groups have changed on disk.
+        logger : logging.Logger, optional
+            logger to log warnings and issues to.
+
+        Raises
+        ------
+        ValueError
+            if unable to parse group file
+        OSError
+            if unable to read group file
+        """
+
+        groups = []
+        group_files: t.List[Path] = []
+        # https://www.sethserver.com/python/recursively-list-files.html
+        queue_dir: t.List[t.Union[Path, str]] = [groups_dir]
+        is_json = lambda f: str(f).endswith(".json")
+
+        def on_error(err: OSError):
+            logger.warning(
+                "Error occurred while looking for group files: %s", err
+            )
+
+        logger.info("Looking for group files in %s", groups_dir)
+        while len(queue_dir) > 0:
+            for (path, dirs, files) in os.walk(
+                queue_dir.pop(), onerror=on_error
+            ):
+                queue_dir.extend(dirs)
+                files = [file for file in files if is_json(file)]
+                group_files.extend(
+                    [Path(os.path.join(path, file)) for file in files]
+                )
+
+        for group_file in group_files:
+            # MachineGroup.from_path has error-handling
+            groups.append(
+                MachineGroup.from_path(
+                    path=group_file, cache=cache, logger=logger
+                )
+            )
+
+        return cls(groups=groups, cache=cache)
+
+    def update(self, logger: t.Optional[logging.Logger] = None) -> int:
+        """
+        Check if any of the known groups have changed, updating if so.
+
+        This method is applicable if managed groups have their `path`
+        attribute set and a `cache` was given to the set. If any of these
+        are missing, then trying to update the group(s) will be skipped.
+
+        To see possible errors, please take a look at
+        `FileSystemCache.is_dirty` and `MachineGroup.from_path`.
+
+        Parameters
+        ----------
+        logger : logging.Logger
+
+        Returns
+        -------
+        int
+            Number of groups that were updated.
+
+        Raises
+        ------
+        ValueError
+        OSError
+        """
+
+        if logger is None:
+            logger = DUMB_LOGGER
+
+        if self.cache is None:
+            logger.warning(
+                "Got a call to update groups, but no cache was given."
+            )
+            return 0
+
+        num_updates = 0
+        for i, group in enumerate(self.groups):
+            if group.path is None:
+                logger.warning(
+                    "Unable to check if group has been updated, as "
+                    "no path is set: %s",
+                    group.name,
+                )
+                continue
+            if self.cache.is_dirty(group.path):
+                self.groups[i] = MachineGroup.from_path(
+                    group.path, cache=self.cache, logger=logger
+                )
+                num_updates += 1
+        return num_updates
+
     def all(self) -> t.List[MachineGroup]:
         """Return the set of all groups in the MachineGroupSet"""
 
-        with _MachineGroupSetLockRegistry.lock(self):
-            return self.groups
+        return self.groups
 
     @staticmethod
     @functools.cache
@@ -542,15 +603,12 @@ class MachineGroupSet(_MachineStuffsBaseModel):
         group_set: "MachineGroupSet", machine: Machine
     ) -> t.List[MachineGroup]:
 
-        # need to cast to tuple since that is hashable and _filter_groups
-        # is wrapped with functools.cache
-        with _MachineGroupSetLockRegistry.lock(group_set):
-            result = []
-            for group in group_set.groups:
-                if group.matches(machine):
-                    result.append(group)
+        result = []
+        for group in group_set.groups:
+            if group.matches(machine):
+                result.append(group)
 
-            return result
+        return result
 
     def filter(self, machine: Machine) -> t.List[MachineGroup]:
         """
@@ -568,94 +626,3 @@ class MachineGroupSet(_MachineStuffsBaseModel):
         """
 
         return self._filter(self, machine)
-
-
-class MachineGroupSetWatchdog(ABC):
-    """
-    Continually update a MachineGroupSet.
-
-    Parameters
-    ----------
-    machine_group_set : MachineGroupSet
-        MachineGroupSet to update over time.
-    """
-
-    def __init__(self, machine_group_set: MachineGroupSet):
-        self.machine_group_set = machine_group_set
-
-    @abstractmethod
-    def start(self):
-        """Start the watchdog."""
-
-    @abstractmethod
-    def stop(self):
-        """Stop the watchdog."""
-
-
-class _DMGSWEventHandler(FileSystemEventHandler):
-    """Event handler for DirectoryMachineGroupSetWatchdog."""
-
-    def __init__(self, watchdog: "DirectoryMachineGroupSetWatchdog"):
-        super().__init__()
-        self.watchdog = watchdog
-
-    def on_modified(self, _: FileModifiedEvent):
-        """Callback for modified event."""
-
-        self.watchdog.reload()
-
-
-class DirectoryMachineGroupSetWatchdog(MachineGroupSetWatchdog):
-    """
-    Watch a directory of machine group json files.
-
-    Has the same args and kwargs as super class `MachineGroupSetWatchdog`
-    with the following additions:
-
-    Parameters
-    ----------
-    groups_dir : Path
-        Directory of MachineGroup json files to watch for changes.
-    cache : FileSystemCache
-        FileSystemCache instance to use for reading group files
-        off of the file system.
-    polling_interval : float, 1.0
-        Interval in-between polling directory for changes.
-        Defaults to 1 second.
-    """
-
-    def __init__(
-        self,
-        groups_dir: Path,
-        cache: FileSystemCache,
-        *args,
-        polling_interval: float = 1.0,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self.groups_dir = groups_dir
-        self.cache = cache
-        self.logger = get_logger("DirectoryMachineGroupSetWatchdog")
-        self.observer = PollingObserver(timeout=polling_interval)
-        self.logger.info(f"Watching group directory '{str(self.groups_dir)}'")
-
-    def reload(self):
-        """Reload the groups in the MachineGroupSet."""
-
-        new_groups = load_groups_from_dir(
-            self.groups_dir, self.cache, self.logger
-        )
-        with _MachineGroupSetLockRegistry.lock(self.machine_group_set):
-            self.machine_group_set.groups = new_groups
-
-    def start(self):
-        self.observer.schedule(
-            _DMGSWEventHandler(self), self.groups_dir, recursive=False
-        )
-        self.observer.start()
-        self.logger.info("Started DirectoryMachineGroupSet watchdog")
-
-    def stop(self):
-        self.logger.info("Stopping DirectoryMachineGroupSet watchdog")
-        self.observer.stop()
-        self.observer.join()

@@ -240,19 +240,19 @@ def merge_with_store(
             known_machine.dict(),
         )
         if known_over_request:
-            merged = machine_request.dict()
-            merged.update(known_machine.dict())
+            machine_dict = machine_request.dict()
+            machine_dict.update(known_machine.dict())
         else:
-            merged = known_machine.dict()
-            merged.update(machine_request.dict())
-        merged_machine = Machine(**merged)
+            machine_dict = known_machine.dict()
+            machine_dict.update(machine_request.dict())
+
+        machine = Machine(**machine_dict)  # do type validation
         logger.debug(
             "Result of merging machine with uuid %s with known entry: %s",
             uuid,
-            merged_machine.dict(),
+            machine_dict,
         )
-        store.put(merged_machine)
-        machine = merged_machine
+        store.put(machine)
     else:
         logger.debug(
             "Given machine with uuid %s has same entry as" "that in the store",
@@ -336,6 +336,19 @@ def handle_template_request(
         machine = machine_request
 
     logger.info(f"Got request from machine {machine}: {str(resolved_fn)}")
+
+    # Right now we'll update groups on every request to prioritizes
+    # accuracy. This can be rate-limited or done in parallel
+    # in the future if needed.
+    try:
+        num_changed = context.groups.update(logger=logger)
+    except (OSError, ValueError) as err:
+        logger.warning("Unable to update configured machine groups: %s", err)
+    else:
+        logger.info(
+            "Found %s out of date machine groups (they have been updated)",
+            num_changed,
+        )
 
     groups = context.groups.filter(machine)
     if len(groups) > 0:
