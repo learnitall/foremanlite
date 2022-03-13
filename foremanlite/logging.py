@@ -68,7 +68,7 @@ def get_file_handler(
 def setup(
     verbose: bool = False,
     use_file: bool = False,
-    file_path: str = None,
+    file_path: t.Optional[str] = None,
     use_stream: bool = True,
 ):
     """
@@ -82,7 +82,7 @@ def setup(
         If True, sets level to DEBUG. Otherwise, level is set to INFO.
     use_file : bool
         Use a file handler. Created with `get_file_handler`.
-    file_path : str
+    file_path : str, optional
         Set path for file handler. Required if `use_file` is `True`.
     use_stream : bool
         Use a stream handler. Created with `get_stream_handler`.

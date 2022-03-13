@@ -7,7 +7,7 @@ Used for storing data such as img files.
 Nothing in the static directory will be treated as a template,
 just (potentially) cacheable data that needs to be served to clients.
 """
-from flask import make_response
+from flask import send_from_directory
 from flask_restx import Namespace, Resource
 
 from foremanlite.fsdata import DataFile
@@ -49,12 +49,12 @@ class StaticFiles(Resource):
             return ("Requested file cannot be found", 404)
 
         try:
-            resp = make_response(
-                data_file.read(),
-                200,
+            return send_from_directory(
+                directory=data_file.path.parent,
+                path=data_file.path,
+                filename=data_file.path.name,
+                cache_timeout=0,
             )
-            resp.headers["Content-Type"] = "text/plain"
-            return resp
         except ValueError as err:
             _logger.warning(
                 "Error occurred while reading static file "
