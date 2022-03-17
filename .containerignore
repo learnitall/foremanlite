@@ -3,7 +3,15 @@
 .git/
 tests/
 Containerfile
+.containerignore
 .gitignore
+.pre-commit-config.yaml
+.pylintrc
+.flake8
+tox.ini
+LICENSE
+
+
 
 # --- Items from gitignore ---
 # https://raw.githubusercontent.com/github/gitignore/master/Python.gitignore
