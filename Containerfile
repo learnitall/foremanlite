@@ -1,4 +1,4 @@
-FROM python:3.9-slim as builder
+FROM python:3.10-slim as builder
 
 # Based on:
 # https://github.com/python-poetry/poetry/issues/1301#issuecomment-872663272
@@ -24,9 +24,9 @@ RUN ${pbin} install --no-dev --no-root
 COPY . /app
 RUN ${pbin} install --no-dev
 
-FROM python:3.9-slim
+FROM python:3.10-slim
 WORKDIR /app
 RUN mkdir -p /var/log/foremanlite
 COPY --from=builder /app /app
-COPY --from=builder /app/etc/foremanlite /etc/foremanlite
+RUN mv /app/etc/foremanlite /etc/foremanlite/ && rm -r /app/etc
 ENTRYPOINT [".venv/bin/python", "-m", "foremanlite.cli"]
