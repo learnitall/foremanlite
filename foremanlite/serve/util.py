@@ -345,10 +345,11 @@ def handle_template_request(
     except (OSError, ValueError) as err:
         logger.warning("Unable to update configured machine groups: %s", err)
     else:
-        logger.info(
-            "Found %s out of date machine groups (they have been updated)",
-            num_changed,
-        )
+        if num_changed > 0:
+            logger.info(
+                "Found and updated %s out of date machine groups.",
+                num_changed,
+            )
 
     groups = context.groups.filter(machine)
     if len(groups) > 0:
