@@ -5,12 +5,19 @@ import typing as t
 
 from flask_restx import Api, Namespace
 
-from foremanlite.serve.routes import ignition, ipxe, machines, static
+from foremanlite.serve.routes import (
+    ignition,
+    ipxe,
+    machines,
+    static,
+    templates,
+)
 
 namespaces: t.Tuple[Namespace, ...] = (
     ignition.ns,
     ipxe.ns,
     static.ns,
+    templates.ns,
     machines.ns,
 )
 

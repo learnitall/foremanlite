@@ -19,6 +19,10 @@ EXEC_DIR = "exec"  # directory containing executables or their configs
 # --- Static ---
 STATIC_DIR = "static"  # directory containing static files served to clients
 
+# --- Template ---
+# directory containing template files rendered and served to clients
+TEMPLATE_DIR = "templates"
+
 # --- iPXE ---
 # File names for different actions
 # These need to be configured in the data directory
