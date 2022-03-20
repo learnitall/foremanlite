@@ -147,7 +147,8 @@ class FileSystemCache:
         OSError
         """
 
-        entry = self.cache.get(self.get_key(path))
+        key = self.get_key(path)
+        entry = self.cache.get(key)
         if entry is None:
             return None
 
@@ -160,6 +161,10 @@ class FileSystemCache:
                     f"Unable to update dirty file in cache: {repr(str(path))}"
                 )
             return self.get(path)
+
+        self.logger.debug(
+            f"Got cache hit for path '{repr(str(path))}', key: {key}"
+        )
         return content
 
     def put(self, path: Path, content: t.Optional[bytes] = None) -> bool:
@@ -212,7 +217,7 @@ class FileSystemCache:
 
         self.logger.debug(
             f"Caching {repr(str(path))}: "
-            f"SHA256: {str(self.compute_sha256(content))}), "
+            f"key: {str(self.compute_sha256(content))}), "
             f"mtime_ns: {mtime}"
         )
         self.cache[self.get_key(path)] = (content, mtime)
