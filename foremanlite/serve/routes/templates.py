@@ -4,7 +4,10 @@
 Template file API endpoint.
 
 Used for storing j2 templates which need to be rendered before being
-sent off to clients.
+sent off to clients. It's expected that all clients are machines,
+ie, the necessary machine query parameters are given.
+
+Templates are served from `data/templates`.
 
 The function `foremanlite.serve.util.construct_machine_vars` will be
 used to construct the variables used to render templates.
