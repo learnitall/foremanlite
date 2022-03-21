@@ -132,7 +132,7 @@ def get_uuid(
     )
 
 
-class MachineSelectorType(Enum):
+class MachineSelectorType(str, Enum):
     """Define different 'modes' for the MachineSelector class."""
 
     regex = "regex"  # pylint: disable=invalid-name
