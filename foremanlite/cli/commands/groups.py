@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Version command group"""
-import json
 import logging
 
 import click
-import orjson
+from prettytable import PrettyTable
 
 from foremanlite.cli.config import Config
 from foremanlite.logging import get as get_logger
@@ -27,7 +26,28 @@ def print_groups(config: Config):
     machine_group_set = ServeContext.get_group_set(
         group_dir, cache=None, logger=logger
     )
-    click.echo(json.dumps(orjson.loads(machine_group_set.json()), indent=4))
+
+    table = PrettyTable()
+    table.field_names = [
+        "Name",
+        "Selectors",
+        "Variables",
+    ]
+    dict_str = (
+        lambda d: ""
+        if d is None
+        else "\n".join([f"{key}={value}" for key, value in d.items()])
+    )
+    for group in machine_group_set.all():
+        table.add_row(
+            [
+                group.name,
+                "\n\n".join([dict_str(s.dict()) for s in group.selectors]),
+                dict_str(group.vars),
+            ]
+        )
+
+    click.echo(table)
 
 
 @click.command()

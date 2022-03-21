@@ -32,17 +32,6 @@ tests = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)"
 tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "mypy", "pytest-mypy-plugins", "cloudpickle"]
 
 [[package]]
-name = "beautifultable"
-version = "1.0.1"
-description = "Print text tables for terminals"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-wcwidth = "*"
-
-[[package]]
 name = "click"
 version = "8.0.4"
 description = "Composable command line interface toolkit"
@@ -322,6 +311,20 @@ python-versions = ">=3.7"
 tests = ["pytest", "pytest-cov"]
 
 [[package]]
+name = "prettytable"
+version = "3.2.0"
+description = "A simple Python library for easily displaying tabular data in a visually appealing ASCII table format"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+wcwidth = "*"
+
+[package.extras]
+tests = ["pytest", "pytest-cov", "pytest-lazy-fixture"]
+
+[[package]]
 name = "psutil"
 version = "5.9.0"
 description = "Cross-platform lib for process and system monitoring in Python."
@@ -538,7 +541,7 @@ python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "ab673a8538a66129e1069d6cf103fd3144179a075203ff67aca10712643aa844"
+content-hash = "a097fa9095a05f5d664bd2cdb9b1fb1bf5a676c1d7b32bfac6cca23ef3097e5b"
 
 [metadata.files]
 aniso8601 = [
@@ -552,10 +555,6 @@ atomicwrites = [
 attrs = [
     {file = "attrs-21.4.0-py2.py3-none-any.whl", hash = "sha256:2d27e3784d7a565d36ab851fe94887c5eccd6a463168875832a1be79c82828b4"},
     {file = "attrs-21.4.0.tar.gz", hash = "sha256:626ba8234211db98e869df76230a137c4c40a12d72445c45d5f5b716f076e2fd"},
-]
-beautifultable = [
-    {file = "beautifultable-1.0.1-py2.py3-none-any.whl", hash = "sha256:8079a7b4179fbb5c0f61d8b3ddd036a1e2b9246d1725b2d2fcde214f9c69f61b"},
-    {file = "beautifultable-1.0.1.tar.gz", hash = "sha256:d2c9ce84f93794d8f158b0c76effba968d08fd2b4acce306911fe78210654dd1"},
 ]
 click = [
     {file = "click-8.0.4-py3-none-any.whl", hash = "sha256:6a7a62563bbfabfda3a38f3023a1db4a35978c0abd76f6c9605ecd6554d6d9b1"},
@@ -711,6 +710,10 @@ pluggy = [
 port-for = [
     {file = "port-for-0.6.2.tar.gz", hash = "sha256:9d4e73523d98f2f9f270308bbf415926c698b5439db8909384a79f152328b4d2"},
     {file = "port_for-0.6.2-py3-none-any.whl", hash = "sha256:be154fdc1d8b2c50820cf1910151e0e9792f82a00ed09b8c277b551e5c99bb5a"},
+]
+prettytable = [
+    {file = "prettytable-3.2.0-py3-none-any.whl", hash = "sha256:f6c5ec87c3ef9df5bba1d32d826c1b862ecad0344dddb6082e3562caf71fe085"},
+    {file = "prettytable-3.2.0.tar.gz", hash = "sha256:ae7d96c64100543dc61662b40a28f3b03c0f94a503ed121c6fca2782c5816f81"},
 ]
 psutil = [
     {file = "psutil-5.9.0-cp27-cp27m-manylinux2010_i686.whl", hash = "sha256:55ce319452e3d139e25d6c3f85a1acf12d1607ddedea5e35fb47a552c051161b"},

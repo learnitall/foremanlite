@@ -5,13 +5,13 @@ import logging
 import typing as t
 
 import click
-from beautifultable import BeautifulTable
+from prettytable import PrettyTable
 
 from foremanlite.cli.cli import Config, config_to_click
 from foremanlite.cli.config import MachineConfig
 from foremanlite.logging import get as get_logger
 from foremanlite.logging import setup as setup_logging
-from foremanlite.machine import SHA256, Machine, get_uuid
+from foremanlite.machine import SHA256, Arch, Mac, Machine, get_uuid
 from foremanlite.serve.context import ServeContext
 from foremanlite.store import BaseMachineStore
 
@@ -67,6 +67,9 @@ def _preflight_machine(**kwargs) -> t.Tuple[str, str, SHA256]:
     if mac is None or arch is None:
         click.echo("Need both a mac and arch to continue, doing nothing.")
         raise ValueError
+
+    mac = Mac(mac)
+    arch = Arch(arch)
     return mac, arch, get_uuid(mac=mac, arch=arch)
 
 
@@ -87,8 +90,8 @@ def print_machines(config: Config, **kwargs):
     groups_dir = ServeContext.get_dirs(config, logger=logger)[2]
     group_set = ServeContext.get_group_set(groups_dir, logger=logger)
 
-    table = BeautifulTable()
-    table.columns.header = [
+    table = PrettyTable()
+    table.field_names = [
         "name",
         "mac",
         "arch",
@@ -100,16 +103,16 @@ def print_machines(config: Config, **kwargs):
         machine_groups = sorted(
             group_set.filter(machine), key=lambda group: group.name
         )
-        group_names = ", ".join([group.name for group in machine_groups])
+        group_names = "\n".join([group.name for group in machine_groups])
         group_vars = {}
         for group in machine_groups:  # note the sorting above
             logger.warning(group)
             if group.vars is not None:
                 group_vars.update(group.vars)
-        group_vars_str = ", ".join(
+        group_vars_str = "\n".join(
             [f"{key}={value}" for key, value in group_vars.items()]
         )
-        table.rows.append(
+        table.add_row(
             [
                 repr(machine.name),
                 repr(machine.mac),

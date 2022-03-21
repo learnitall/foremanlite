@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=redefined-outer-name,unused-argument
 """Test functionality of the foremanlite cli commands."""
-import json
 import random
 import time
 import typing as t
@@ -29,6 +28,7 @@ from foremanlite.machine import (
     MachineGroup,
     MachineGroupSet,
     MachineSelector,
+    MachineSelectorType,
     get_uuid,
 )
 from foremanlite.serve.context import ServeContext
@@ -410,6 +410,7 @@ class TestPrintGroups:
         """Test print_groups prints all groups as json."""
 
         group_set = MachineGroupSet(
+            cache=None,
             groups=[
                 MachineGroup(
                     name="group1",
@@ -440,15 +441,42 @@ class TestPrintGroups:
                     ],
                     vars={"my_group_var": "a_group_var_value"},
                 ),
-            ]
+            ],
         )
 
         def mockecho(msg):
             """Assert given string is equal to the configured group set."""
 
-            group_set_json = group_set.dict()
-            for group in json.loads(msg):
-                assert group in group_set_json
+            if isinstance(msg, str):
+                return
+
+            assert len(msg.rows) == len(group_set.groups)
+
+            for row in msg.rows:
+                # row[0] is the name,
+                # row[1] are the selectors
+                # row[2] are the variables
+
+                found_group = None
+                for group in group_set.groups:
+                    if row[0] == group.name:
+                        found_group = group
+                assert found_group is not None
+
+                for selector in found_group.selectors:
+                    for _, value in selector.dict().items():
+                        if isinstance(value, MachineSelectorType):
+                            # this looks horribly weird, but we need to
+                            # get the enum's string value, which is held in
+                            # the `value` attribute
+                            value = value.value
+                        assert str(value) in row[1]
+
+                if found_group.vars is None:
+                    continue
+                for key, value in found_group.vars.items():
+                    assert str(key) in row[2]
+                    assert str(value) in row[2]
 
         monkeypatch.setattr(click, "echo", mockecho)
 
