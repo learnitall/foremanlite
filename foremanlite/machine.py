@@ -19,7 +19,7 @@ from foremanlite.logging import DUMB_LOGGER
 Mac = t.NewType("Mac", str)
 
 
-class Arch(Enum):
+class Arch(str, Enum):
     """Represent architecture of a machine."""
 
     x86_64 = "x86_64"  # pylint: disable=invalid-name
@@ -124,7 +124,7 @@ def get_uuid(
     if mac is None or arch is None:
         raise ValueError(
             "Need mac and arch to compute uuid, one or both "
-            f"is missing (mac={mac}, arch={arch}"
+            f"is missing (mac={mac}, arch={arch})"
         )
 
     return SHA256(
