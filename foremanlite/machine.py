@@ -476,13 +476,61 @@ class MachineGroupSet(_MachineStuffsBaseModel):
     cache : FileSystemCache, optional
         Optional FileSystemCache to use for determining if groups
         have changed on disk.
+    groups_dir : Path, optional
+        Directory where group files are pulled from (recursively).
     """
 
     groups: t.List[MachineGroup]
     cache: t.Optional[FileSystemCache]
+    groups_dir: t.Optional[Path]
 
     def __hash__(self):
         return hash(repr(self))
+
+    @staticmethod
+    def find_group_files(
+        groups_dir: Path, logger: logging.Logger
+    ) -> t.List[Path]:
+        """
+        Return a list of group file candidates in the given directory.
+
+        Recursively moves through the given directory to find json files.
+
+        Parameters
+        ----------
+        groups_dir : Path
+            Directory containing json files defining MachineGroup instances.
+            See `MachineGroup.from_json` for more information.
+        logger : logging.Logger
+            logger to log warnings and issues to.
+
+        Returns
+        -------
+        list of paths
+        """
+
+        group_files: t.List[Path] = []
+        # https://www.sethserver.com/python/recursively-list-files.html
+        queue_dir: t.List[t.Union[Path, str]] = [groups_dir]
+        is_json = lambda f: str(f).endswith(".json")
+
+        def on_error(err: OSError):
+            logger.warning(
+                "Error occurred while looking for group files: %s", err
+            )
+
+        logger.info("Looking for group files in %s", groups_dir)
+        while len(queue_dir) > 0:
+            for (path, dirs, files) in os.walk(
+                queue_dir.pop(), onerror=on_error
+            ):
+                queue_dir.extend(dirs)
+                files = [file for file in files if is_json(file)]
+                group_files.extend(
+                    [Path(os.path.join(path, file)) for file in files]
+                )
+
+        return group_files
 
     @classmethod
     def from_dir(
@@ -505,7 +553,7 @@ class MachineGroupSet(_MachineStuffsBaseModel):
         cache : FileSystemCache, optional
             FileSystemCache instance to read files with. Will be saved to
             help determine if groups have changed on disk.
-        logger : logging.Logger, optional
+        logger : logging.Logger
             logger to log warnings and issues to.
 
         Raises
@@ -517,26 +565,7 @@ class MachineGroupSet(_MachineStuffsBaseModel):
         """
 
         groups = []
-        group_files: t.List[Path] = []
-        # https://www.sethserver.com/python/recursively-list-files.html
-        queue_dir: t.List[t.Union[Path, str]] = [groups_dir]
-        is_json = lambda f: str(f).endswith(".json")
-
-        def on_error(err: OSError):
-            logger.warning(
-                "Error occurred while looking for group files: %s", err
-            )
-
-        logger.info("Looking for group files in %s", groups_dir)
-        while len(queue_dir) > 0:
-            for (path, dirs, files) in os.walk(
-                queue_dir.pop(), onerror=on_error
-            ):
-                queue_dir.extend(dirs)
-                files = [file for file in files if is_json(file)]
-                group_files.extend(
-                    [Path(os.path.join(path, file)) for file in files]
-                )
+        group_files = cls.find_group_files(groups_dir, logger)
 
         for group_file in group_files:
             # MachineGroup.from_path has error-handling
@@ -546,7 +575,7 @@ class MachineGroupSet(_MachineStuffsBaseModel):
                 )
             )
 
-        return cls(groups=groups, cache=cache)
+        return cls(groups=groups, groups_dir=groups_dir, cache=cache)
 
     def update(self, logger: t.Optional[logging.Logger] = None) -> int:
         """
@@ -583,7 +612,9 @@ class MachineGroupSet(_MachineStuffsBaseModel):
             )
             return 0
 
+        # Update existing groups
         num_updates = 0
+        known_paths: t.List[Path] = []
         for i, group in enumerate(self.groups):
             if group.path is None:
                 logger.warning(
@@ -592,11 +623,39 @@ class MachineGroupSet(_MachineStuffsBaseModel):
                     group.name,
                 )
                 continue
+            known_paths.append(group.path)
             if self.cache.is_dirty(group.path):
                 self.groups[i] = MachineGroup.from_path(
                     group.path, cache=self.cache, logger=logger
                 )
+                logger.debug(
+                    "Updated group: name: %s, path: %s",
+                    group.name,
+                    repr(str(group.path)),
+                )
                 num_updates += 1
+
+        # Find new groups
+        if self.groups_dir is None:
+            logger.warning(
+                "Unable to check for new groups, as source dir is not set"
+            )
+            return num_updates
+        group_files = [
+            path
+            for path in self.find_group_files(self.groups_dir, logger)
+            if path not in known_paths
+        ]
+        for group_file in group_files:
+            group = MachineGroup.from_path(group_file, logger, self.cache)
+            self.groups.append(group)
+            logger.debug(
+                "Added group: name: %s, path: %s",
+                group.name,
+                repr(str(group.path)),
+            )
+            num_updates += 1
+
         return num_updates
 
     def all(self) -> t.List[MachineGroup]:
