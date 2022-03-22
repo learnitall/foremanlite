@@ -51,7 +51,7 @@ def _preflight_check_store(
     store: t.Optional[BaseMachineStore] = context.store
     if store is None:
         raise ValueError(
-            "Received request to update machine but no store is"
+            "Received request to update machine but no store is "
             f"configured: {repr_request(req)}"
         )
     return store
