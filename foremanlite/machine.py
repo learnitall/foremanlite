@@ -114,7 +114,9 @@ def get_uuid(
     Raises
     ------
     ValueError
-        if mac and arch are not available.
+        if mac and arch are not available, or if the given values
+        for mac and arch cannot be properly normalized into strings
+        (ie an arch that is not part of the Arch enum is given).
     """
 
     if machine is not None:
@@ -127,8 +129,13 @@ def get_uuid(
             f"is missing (mac={mac}, arch={arch})"
         )
 
+    mac_str = str(Mac(mac))
+    arch_str = str(Arch(arch).value)
+
     return SHA256(
-        hashlib.sha256(f"{str(mac)}{str(arch)}".encode("utf-8")).hexdigest()
+        hashlib.sha256(
+            f"{str(mac_str)}{str(arch_str)}".encode("utf-8")
+        ).hexdigest()
     )
 
 
