@@ -4,6 +4,7 @@ import functools
 import hashlib
 import logging
 import os
+import re
 import typing as t
 from abc import ABC
 from enum import Enum
@@ -157,7 +158,8 @@ class MachineSelector(ABC, _MachineStuffsBaseModel):
     attr : str
         Attribute of Machine to match val against.
     val : str
-        Value to match against.
+        Value to match against. If using a regex type, then this
+        value will always be casted to a string.
     name : str, optional
         Name of the selector. See SelectorMatchStr.
     """
@@ -184,9 +186,9 @@ class MachineSelector(ABC, _MachineStuffsBaseModel):
         """Assert Pattern type is given when using regex selector."""
 
         if values["type"] == MachineSelectorType.regex and not isinstance(
-            value, t.Pattern
+            value, str
         ):
-            raise ValueError("need pattern for val if using regex selector")
+            value = str(value)
         return value
 
     @validator("attr", "val")
@@ -206,20 +208,12 @@ class MachineSelector(ABC, _MachineStuffsBaseModel):
     def _regex_matches(self, machine: Machine) -> bool:
         """Determine if machine has attr which matches set regex string."""
 
-        # pydantic should make this block inaccessible, but just
-        # to be safe and to help our static checkers out
-        if not isinstance(self.val, t.Pattern):
-            raise ValueError(
-                "Expected val to be regex Pattern type, instead "
-                f"got {type(self.val)}"
-            )
-
         attr = getattr(machine, self.attr, None)
         if isinstance(attr, Enum):
             attr = attr.value
         attr = str(attr)
 
-        return self.val.match(attr) is not None
+        return re.compile(self.val).match(attr) is not None
 
     def matches(self, machine: Machine) -> bool:
         """

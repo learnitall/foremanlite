@@ -136,7 +136,7 @@ class TestMachineSelector:
                 value = value.value
             value = str(value)
             selector = MachineSelector(
-                type="regex", attr=key, val=re.compile(f"^{re.escape(value)}$")
+                type="regex", attr=key, val=f"^{re.escape(value)}$"
             )
             assert selector.matches(machine_one)
             assert not selector.matches(machine_two)
