@@ -16,12 +16,13 @@ $ # OR
 $ pip install .
 ```
 
-A Containerfile is also included, based on [python:3.10-slim](https://hub.docker.com/_/python). The file `scripts/build.sh` can be used to build the foremanlite container and tag it with the appropriate version:
+A Containerfile is also included, based on [python:3.10-slim](https://hub.docker.com/_/python). The file `scripts/build.sh` can be used to build the foremanlite container and tag it with the appropriate version. It needs to be run from a virtual environment that has foremanlite installed:
 
 ```bash
 $ git clone https://github.com/learnitall/foremanlite
 $ cd foremanlite
-$ scripts/build.sh
+$ poetry install
+$ poetry run scripts/build.sh
 ```
 
 The `Containerfile` is setup to install foremanlite into a virtual environment during a build stage, which is then copied into the final image. To activate the virtual environment inside a foremanlite container, use `/app/.venv/bin/activate`:
