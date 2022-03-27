@@ -6,17 +6,17 @@ This README provides a quick overview for the project. For more information, ple
 
 ## Installing
 
-foremanlite is packaged with [poetry](https://python-poetry.org), meaning `pip` or `poetry` can be used to build and install it:
+foremanlite is packaged with [poetry](https://python-poetry.org). Please see poetry's documentation for more information on how it can be used to build and install foremanlite. For a TL;DR though:
 
 ```bash
 $ git clone https://github.com/learnitall/foremanlite
 $ cd foremanlite
-$ poetry build
-$ # OR
-$ pip install .
+$ poetry build  # build wheels
+$ poetry install # create new venv with foremanlite installed
+$ pip install .  # install with pip
 ```
 
-A Containerfile is also included, based on [python:3.10-slim](https://hub.docker.com/_/python). The file `scripts/build.sh` can be used to build the foremanlite container and tag it with the appropriate version. It needs to be run from a virtual environment that has foremanlite installed:
+A Containerfile is also included, based on [python:3.10-slim](https://hub.docker.com/_/python). The file `scripts/build.sh` can be used to build the foremanlite container and tag it with the appropriate version. It needs to be run from the project's root within a virtual environment that has foremanlite installed:
 
 ```bash
 $ git clone https://github.com/learnitall/foremanlite
@@ -31,6 +31,8 @@ The `Containerfile` is setup to install foremanlite into a virtual environment d
 $ podman exec -it foremanlite /bin/bash
 # . .venv/bin/activate
 ```
+
+Please take a look at the `Containerfile` for an explanation of why this choice was made to use a dedicated python virtual environment within the container image.
 
 ## Overview
 
@@ -108,7 +110,7 @@ The `MachineGroup` class defines a group of `Machines` and the variables which a
 
 ### Example
 
-Let's say we have the following CoreOS machines:
+Let's say we have the following machines:
 
 ```json
 [
@@ -133,7 +135,7 @@ Let's say we have the following CoreOS machines:
 ]
 ```
 
-Our worker machines and controller machine have different binaries which they need to download and run on startup. We can use variables defined with `MachineGroup`s to render our startup script differently depending on which machine requests it.
+Our worker machines and controller machine have different binaries which they need to download and run on startup. We can use variables defined within `MachineGroup`s to render our startup script differently depending on which machine requests it.
 
 For instance, if we have the following script:
 
@@ -251,17 +253,15 @@ sequenceDiagram
     end
 ```
 
-When a client receives `provision.ipxe`, the ipxe file set through a machine's `chain_file` variable will be chainloaded. If the `chain_file` variable is not set, then a default provisioning option will be used instead (right now this is [netboot.xyz](https://netboot.xyz)).
+In order to provide the correct iPXE files, foremanlite first needs to identity the machine it is working with. `boot.ipxe` grabs the machine's arch and Mac address and passes them along to foremanlite through a request to chainload `start.ipxe`.
 
-When a client receives `pass.ipxe`, the machine will exit out of the iPXE boot process and continue on with the other boot options it has available. This allows for the provisioning process of a machine to be controller by setting the `provision` attribute.
+`start.ipxe` chainloads either `provision.ipxe` or `pass.ipxe` depending on the machine's provision attribute. If the machine hasn't been seen before, then it's provision attribute will be set to `True` by default.
 
-Foremanlite has a CLI which can be used to change a machine's attributes, however it also exposes an HTTP endpoint for this purpose as well. This means that provisioning loops can be resolved within iPXE files themselves, thanks to [imgfetch](https://ipxe.org/cmd/imgfetch) and Flasks' [url_for](https://flask.palletsprojects.com/en/2.0.x/api/#flask.url_for):
+When a client receives `provision.ipxe`, the iPXE file set through a machine's `chain_file` variable will be chainloaded. If the `chain_file` variable is not set, then a default provisioning option will be used instead (right now this is [netboot.xyz](https://netboot.xyz)).
 
-```
-imgfetch {{ url_for("update_machine", _external=True) }}?arch=${arch}&mac=${mac:hexhyp}&name={{ name }}&provision=false
-```
+When a client receives `pass.ipxe`, the machine will exit out of the iPXE boot process and continue on with the other boot options it has available. As mentioned previously, this allows for the provisioning of a machine to be toggled by setting the `provision` attribute to either `True` or `False`.
 
-The files `boot.ipxe`, `start.ipxe`, `provision.ipxe` and `pass.ipxe` are all included by default with foremanlite to provide a sane default boot sequence, however these files can be changed for whatever your needs may be.
+The files `boot.ipxe`, `start.ipxe`, `provision.ipxe` and `pass.ipxe` are all included by default with foremanlite to provide a boot sequence, however these files can be changed for whatever your needs may be.
 
 ## CLI
 
@@ -301,7 +301,7 @@ Commands:
   version   Print version and exit.
 ```
 
-Please take a look at the `Containerfile` for an explanation of why this choice was made to create a separate python virtual environment.
+The CLI is mainly used for starting foremanlite's REST API, populating and editing machines, and for debugging groups.
 
 ## REST API
 
@@ -311,15 +311,23 @@ foremanlite's REST API is built using [flask-restx](https://flask-restx.readthed
 podman run --rm -it -p 8080:8080 foremanlite start --verbose --no-redis
 ```
 
+The REST API is basically just used as a templatable file server, but it can also be used to manage machines and their attributes. 
+
+All templates are rendered using [Flask's template rendering functions](https://flask.palletsprojects.com/en/2.0.x/quickstart/#rendering-templates). This means that provisioning loops can be resolved within iPXE files themselves, thanks to [imgfetch](https://ipxe.org/cmd/imgfetch) and Flasks' [url_for](https://flask.palletsprojects.com/en/2.0.x/api/#flask.url_for):
+
+```
+imgfetch {{ url_for("update_machine", _external=True) }}?arch=${arch}&mac=${mac:hexhyp}&name={{ name }}&provision=false
+```
+
 ## Configuring
 
 foremanlite is configured through a hierarchical 'configuration directory', which holds data that can be served to clients, machine group definitions, third-party executables and gunicorn configuration. These locations can be adjusted by editing the values in `foremanlite/vars.py`, but here's a description of each default directory as it's shipped:
 
-* `data/butane`. Coreos `.bu` files.
-* `data/ignition`. Coreos `.ign` files.
+* `data/butane`. CoreOS `.bu` files.
+* `data/ignition`. CoreOS `.ign` files.
 * `data/ipxe`. iPXE files.
 * `data/staic`. Static, non-templatable files, such as `.img` files.
-* `data/templates`. Template files, must end in `.j2`.
+* `data/templates`. Generic jinja2 template files.
 * `exec/`. Executables (ie butane) and gunicorn configuration.
 * `groups/`. `MachineGroup` json files. Must end in `.json`.
 
@@ -335,7 +343,7 @@ no-redis: true
 
 ## Contributing
 
-There are two things to consider before opening a PR: linting and testing. Linting is performed with the help of [pre-commit](https://pre-commit.com), which runs hooks for checking style, typing, syntax. Testing is performed using [tox](https://tox.wiki)-invoked [pytest](https://docs.pytest.org) and is mainly used for regressing testing and hypothesis testing on foremanlite's core library components.
+There are two things to consider before opening a PR: linting and testing. Linting is performed with the help of [pre-commit](https://pre-commit.com), which runs hooks for checking style, typing and syntax. Testing is performed using [tox](https://tox.wiki)-invoked [pytest](https://docs.pytest.org) and is mainly used for regressing testing and hypothesis testing on foremanlite's core library components.
 
 Here are the main technologies and dependencies that foremanlite uses:
 
